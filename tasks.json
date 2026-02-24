@@ -1,0 +1,363 @@
+{
+  "tasks": [
+    {
+      "task": "Create pyproject.toml for uv",
+      "description": "Create modern pyproject.toml with Python 3.10, JAX CUDA 12 dependencies, and uv-compatible configuration.",
+      "steps": [
+        {
+          "step": 1,
+          "description": "Define project metadata with name, version, and description"
+        },
+        {
+          "step": 2,
+          "description": "Set Python version constraint to >=3.10,<3.11 for ROS2 Humble compatibility"
+        },
+        {
+          "step": 3,
+          "description": "Extract pure Python dependencies from environment.yml pip section"
+        },
+        {
+          "step": 4,
+          "description": "Create [project.optional-dependencies] with cuda12 extra for GPU support"
+        },
+        {
+          "step": 5,
+          "description": "Configure uv tool settings and setuptools backend"
+        }
+      ],
+      "acceptance-criteria": "pyproject.toml exists in project root with valid TOML syntax. Core dependencies include jax, flax, optax, orbax-checkpoint, numpy, scipy, pandas, matplotlib, seaborn, pyyaml. Python version constraint is >=3.10,<3.11. Optional cuda12 extra includes jax[cuda12] for GPU acceleration. Running uv sync successfully creates .venv and installs all packages.",
+      "test-plan": {
+        "unit": [
+          "pyproject.toml parses as valid TOML without syntax errors",
+          "Project metadata contains name='lotf' and version='0.1.0'",
+          "Python requires field equals '>=3.10,<3.11'",
+          "Core dependencies list includes jax, flax, optax, numpy, scipy",
+          "Optional dependencies contain cuda12 extra with jax[cuda12]"
+        ],
+        "integration": [
+          "uv sync command completes without errors",
+          "uv run python -c 'import jax; import flax; import optax' succeeds",
+          "uv run python -c 'import lotf' succeeds after package installation"
+        ],
+        "e2e-manual": [
+          "Verify CUDA is available: uv run python -c 'import jax; print(jax.devices())' shows GPU device"
+        ]
+      },
+      "skills": ["writing-python", "installing-dependencies", "verification-before-completion"],
+      "complete": false
+    },
+    {
+      "task": "Create YAML config loader module",
+      "description": "Implement a clean configuration loader that parses YAML files and returns typed dataclass configs.",
+      "steps": [
+        {
+          "step": 1,
+          "description": "Create lotf/configs/__init__.py with config module exports"
+        },
+        {
+          "step": 2,
+          "description": "Define dataclass configs for training, environment, and simulation parameters"
+        },
+        {
+          "step": 3,
+          "description": "Implement load_config function using pyyaml with file path and optional overrides"
+        },
+        {
+          "step": 4,
+          "description": "Add config validation with clear error messages for missing or invalid fields"
+        },
+        {
+          "step": 5,
+          "description": "Create merge_config utility for combining base configs with experiment overrides"
+        }
+      ],
+      "acceptance-criteria": "lotf/configs/__init__.py exists and exports load_config function. Config dataclasses define TrainingConfig, EnvConfig, SimConfig with type hints. load_config accepts YAML file path and returns frozen dataclass instance. Invalid YAML paths raise FileNotFoundError with helpful message. Missing required fields raise ValidationError with field name. merge_config correctly overrides nested values from dict to dataclass.",
+      "test-plan": {
+        "unit": [
+          "load_config returns correct dataclass type for valid YAML file",
+          "load_config raises FileNotFoundError for non-existent path",
+          "load_config raises ValueError for malformed YAML content",
+          "TrainingConfig dataclass has fields: seed, num_envs, max_epochs, learning_rate",
+          "EnvConfig dataclass has fields: dt, delay, max_steps_in_episode",
+          "merge_config overrides scalar values correctly",
+          "merge_config preserves unspecified nested values"
+        ],
+        "integration": [],
+        "e2e-manual": []
+      },
+      "skills": ["tdd-workflow", "writing-python", "testing-safe-protocol"],
+      "complete": false
+    },
+    {
+      "task": "Create YAML config files for training tasks",
+      "description": "Create YAML configuration files for each training scenario with sensible defaults extracted from notebooks.",
+      "steps": [
+        {
+          "step": 1,
+          "description": "Create configs/ directory in project root"
+        },
+        {
+          "step": 2,
+          "description": "Create configs/state_hovering.yaml with training and env parameters from notebook"
+        },
+        {
+          "step": 3,
+          "description": "Create configs/traj_tracking.yaml with trajectory tracking parameters"
+        },
+        {
+          "step": 4,
+          "description": "Create configs/residual_dynamics.yaml with ensemble model parameters"
+        },
+        {
+          "step": 5,
+          "description": "Create configs/vision_hovering.yaml with vision-based hovering parameters"
+        }
+      ],
+      "acceptance-criteria": "configs/ directory exists in project root. configs/state_hovering.yaml contains seed, num_envs, max_epochs, sim_dt, max_sim_time, delay, reward_sharpness, action_penalty_weight, hover_target. configs/residual_dynamics.yaml contains num_models, input_dim, output_dim, learning_rate, lambda_reg, num_epochs, batch_size, eval_every. All YAML files are valid and parseable by pyyaml.",
+      "test-plan": {
+        "unit": [
+          "configs/state_hovering.yaml is valid YAML",
+          "configs/traj_tracking.yaml is valid YAML",
+          "configs/residual_dynamics.yaml is valid YAML",
+          "configs/vision_hovering.yaml is valid YAML",
+          "state_hovering.yaml contains required training fields: seed, num_envs, max_epochs",
+          "residual_dynamics.yaml contains required fields: num_models, learning_rate, num_epochs"
+        ],
+        "integration": [
+          "load_config('configs/state_hovering.yaml') returns valid TrainingConfig",
+          "load_config('configs/residual_dynamics.yaml') returns valid config dataclass"
+        ],
+        "e2e-manual": []
+      },
+      "skills": ["writing-python"],
+      "complete": false
+    },
+    {
+      "task": "Create modular training script for state hovering",
+      "description": "Extract and modularize the state hovering training logic from notebook into executable Python script.",
+      "steps": [
+        {
+          "step": 1,
+          "description": "Create lotf/scripts/__init__.py with script module exports"
+        },
+        {
+          "step": 2,
+          "description": "Create train_state_hovering.py with argparse CLI for config path and checkpoint output"
+        },
+        {
+          "step": 3,
+          "description": "Implement create_env function that builds HoveringStateEnv from config"
+        },
+        {
+          "step": 4,
+          "description": "Implement create_policy function that builds MLP and TrainState from config"
+        },
+        {
+          "step": 5,
+          "description": "Implement main training loop using bptt.train with progress callbacks"
+        },
+        {
+          "step": 6,
+          "description": "Add checkpoint save functionality using orbax PyTreeCheckpointer"
+        }
+      ],
+      "acceptance-criteria": "lotf/scripts/train_state_hovering.py exists and is executable via uv run python -m lotf scripts.train_state_hovering. CLI accepts --config path argument with default configs/state_hovering.yaml. CLI accepts --output path argument for checkpoint save location. Script loads config, creates environment, initializes policy, runs training loop, and saves final checkpoint. Training produces identical results to notebook when using same config parameters.",
+      "test-plan": {
+        "unit": [
+          "create_env returns HoveringStateEnv with correct observation and action spaces",
+          "create_policy returns TrainState with correct parameter shapes",
+          "argparse CLI parses --config and --output flags correctly",
+          "checkpoint save creates file at specified output path"
+        ],
+        "integration": [
+          "uv run python -m lotf.scripts.train_state_hovering --config configs/state_hovering.yaml runs without errors",
+          "Training with default config completes max_epochs iterations",
+          "Output checkpoint file loads successfully with PyTreeCheckpointer"
+        ],
+        "e2e-manual": [
+          "Training reward curve visually matches notebook output for same hyperparameters"
+        ]
+      },
+      "skills": ["tdd-workflow", "writing-python", "cli-guideline", "testing-safe-protocol"],
+      "complete": false
+    },
+    {
+      "task": "Create modular training script for residual dynamics",
+      "description": "Extract and modularize the residual dynamics ensemble training logic from notebook into executable Python script.",
+      "steps": [
+        {
+          "step": 1,
+          "description": "Create train_residual.py with argparse CLI for config, dataset, and output paths"
+        },
+        {
+          "step": 2,
+          "description": "Implement load_dataset function that reads CSV and returns JAX arrays"
+        },
+        {
+          "step": 3,
+          "description": "Implement create_ensemble function that initializes multiple models from config"
+        },
+        {
+          "step": 4,
+          "description": "Implement training loop using vectorized train_fn from residual_dynamics module"
+        },
+        {
+          "step": 5,
+          "description": "Add checkpoint save for ensemble model parameters"
+        }
+      ],
+      "acceptance-criteria": "lotf/scripts/train_residual.py exists and is executable via uv run python -m lotf.scripts.train_residual. CLI accepts --config, --dataset, and --output arguments. Script loads CSV dataset, initializes ensemble models, runs vectorized training, and saves final parameters. Training output includes per-epoch MSE loss logging for each ensemble member.",
+      "test-plan": {
+        "unit": [
+          "load_dataset returns X and y JAX arrays with correct shapes from valid CSV",
+          "load_dataset raises FileNotFoundError for non-existent dataset path",
+          "create_ensemble returns correct number of train states based on config.num_models",
+          "argparse CLI parses all three required arguments"
+        ],
+        "integration": [
+          "uv run python -m lotf.scripts.train_residual --config configs/residual_dynamics.yaml --dataset examples/residual_dynamics/example_dataset.csv runs without errors",
+          "Training completes specified num_epochs for all ensemble members",
+          "Output checkpoint contains parameters for all ensemble models"
+        ],
+        "e2e-manual": []
+      },
+      "skills": ["tdd-workflow", "writing-python", "cli-guideline", "testing-safe-protocol"],
+      "complete": false
+    },
+    {
+      "task": "Create modular training script for trajectory tracking",
+      "description": "Extract and modularize the trajectory tracking training logic into executable Python script.",
+      "steps": [
+        {
+          "step": 1,
+          "description": "Create train_traj_tracking.py with argparse CLI for config and checkpoint paths"
+        },
+        {
+          "step": 2,
+          "description": "Implement create_env function for TrajTrackingStateEnv from config"
+        },
+        {
+          "step": 3,
+          "description": "Implement reference trajectory loading and configuration"
+        },
+        {
+          "step": 4,
+          "description": "Implement training loop with trajectory-specific reward computation"
+        },
+        {
+          "step": 5,
+          "description": "Add checkpoint and trajectory export functionality"
+        }
+      ],
+      "acceptance-criteria": "lotf/scripts/train_traj_tracking.py exists and is executable via uv run python -m lotf.scripts.train_traj_tracking. CLI accepts --config, --checkpoint, --trajectory-output arguments. Script creates TrajTrackingStateEnv, runs training loop with reference trajectory, and saves policy checkpoint. Trajectory export generates CSV with position and quaternion data.",
+      "test-plan": {
+        "unit": [
+          "create_env returns TrajTrackingStateEnv with correct observation space",
+          "Reference trajectory loads correctly from configured path",
+          "argparse CLI parses all required arguments",
+          "Trajectory export creates valid CSV with required columns"
+        ],
+        "integration": [
+          "uv run python -m lotf.scripts.train_traj_tracking --config configs/traj_tracking.yaml runs without errors",
+          "Training loop executes for configured number of epochs",
+          "Checkpoint and trajectory files are created at output paths"
+        ],
+        "e2e-manual": [
+          "Trained trajectory visually follows reference path with acceptable tracking error"
+        ]
+      },
+      "skills": ["tdd-workflow", "writing-python", "cli-guideline", "testing-safe-protocol"],
+      "complete": false
+    },
+    {
+      "task": "Create project entry point script",
+      "description": "Create a unified entry point script that dispatches to specific training tasks based on command argument.",
+      "steps": [
+        {
+          "step": 1,
+          "description": "Create lotf/__main__.py as package entry point"
+        },
+        {
+          "step": 2,
+          "description": "Implement argparse subcommands for hover, track, residual tasks"
+        },
+        {
+          "step": 3,
+          "description": "Add --list-configs flag to show available configuration files"
+        },
+        {
+          "step": 4,
+          "description": "Add --version flag to show package version"
+        },
+        {
+          "step": 5,
+          "description": "Register script as console entry point in pyproject.toml"
+        }
+      ],
+      "acceptance-criteria": "lotf/__main__.py exists and enables uv run lotf command. Subcommands include: hover (state hovering), track (trajectory tracking), residual (residual dynamics). uv run lotf hover --config configs/state_hovering.yaml executes state hovering training. uv run lotf --list-configs prints available YAML configs. uv run lotf --version prints package version. Console entry point lotf registered in pyproject.toml enables direct lotf command.",
+      "test-plan": {
+        "unit": [
+          "argparse correctly parses hover subcommand with config argument",
+          "argparse correctly parses track subcommand with config argument",
+          "argparse correctly parses residual subcommand with config and dataset arguments",
+          "--list-configs flag returns list of YAML files in configs/ directory",
+          "--version flag returns current package version string"
+        ],
+        "integration": [
+          "uv run lotf hover --config configs/state_hovering.yaml invokes train_state_hovering",
+          "uv run lotf residual --config configs/residual_dynamics.yaml --dataset examples/residual_dynamics/example_dataset.csv invokes train_residual",
+          "uv run lotf --help shows usage information for all subcommands"
+        ],
+        "e2e-manual": [
+          "User can run complete training workflow using only uv run lotf commands"
+        ]
+      },
+      "skills": ["tdd-workflow", "writing-python", "cli-guideline", "verification-before-completion"],
+      "complete": false
+    },
+    {
+      "task": "Verify complete training workflow",
+      "description": "Execute end-to-end verification that all training scripts work correctly with the new uv-based setup.",
+      "steps": [
+        {
+          "step": 1,
+          "description": "Run uv sync to ensure clean environment setup"
+        },
+        {
+          "step": 2,
+          "description": "Execute state hovering training with minimal epochs for smoke test"
+        },
+        {
+          "step": 3,
+          "description": "Execute residual dynamics training with example dataset"
+        },
+        {
+          "step": 4,
+          "description": "Verify checkpoint files are created and loadable"
+        },
+        {
+          "step": 5,
+          "description": "Document final usage instructions in README or USAGE.md"
+        }
+      ],
+      "acceptance-criteria": "uv sync completes without errors in clean environment. uv run lotf hover --config configs/state_hovering.yaml completes training and saves checkpoint. uv run lotf residual --config configs/residual_dynamics.yaml --dataset examples/residual_dynamics/example_dataset.csv completes training and saves ensemble parameters. All generated checkpoint files load successfully with orbax PyTreeCheckpointer. Usage documentation exists with clear examples for each training task.",
+      "test-plan": {
+        "unit": [
+          "uv sync exits with code 0",
+          "Checkpoint files exist at expected output paths after training",
+          "PyTreeCheckpointer.restore loads saved checkpoints without errors"
+        ],
+        "integration": [
+          "Full training workflow from uv sync to checkpoint save completes successfully",
+          "Trained policy parameters have expected shapes matching network architecture"
+        ],
+        "e2e-manual": [
+          "Review usage documentation for clarity and completeness",
+          "Verify training times are reasonable compared to original notebook execution"
+        ]
+      },
+      "skills": ["verification-before-completion", "documenting"],
+      "complete": false
+    }
+  ]
+}
