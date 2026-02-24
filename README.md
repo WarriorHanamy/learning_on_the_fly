@@ -42,14 +42,12 @@ Learning control policies in simulation enables rapid, safe, and cost-effective 
 
 ## Requirements
 
-The code has been tested on:
-
 | Component | Version |
 |-----------|---------|
-| Ubuntu    | 20.04 / 22.04 / 24.04 LTS |
+| Ubuntu    | 22.04 LTS |
 | Python    | 3.10 (uv managed) |
 | CUDA      | 12.x |
-| GPU       | RTX 4060 / RTX 4090 |
+| GPU       | NVIDIA GPU with CUDA support |
 
 ## Installation
 
@@ -57,7 +55,7 @@ This project uses [uv](https://docs.astral.sh/uv/) for fast dependency managemen
 
 ```bash
 # Clone the repository
-git clone https://github.com/uzh-rpg/learning_on_the_fly.git
+git clone https://github.com/WarriorHanamy/learning_on_the_fly.git
 cd learning_on_the_fly
 
 # Install dependencies (CPU only)
