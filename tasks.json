@@ -86,7 +86,7 @@
         "e2e-manual": []
       },
       "skills": ["tdd-workflow", "writing-python", "testing-safe-protocol"],
-      "complete": false
+      "complete": true
     },
     {
       "task": "Create YAML config files for training tasks",
