@@ -130,7 +130,7 @@
         "e2e-manual": []
       },
       "skills": ["writing-python"],
-      "complete": false
+      "complete": true
     },
     {
       "task": "Create modular training script for state hovering",

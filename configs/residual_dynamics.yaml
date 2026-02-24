@@ -1,0 +1,20 @@
+# Residual Dynamics Ensemble Model Training Configuration
+# Extracted from examples/residual_dynamics/train_ensemble_model.ipynb
+
+# Ensemble model parameters
+num_models: 3
+input_dim: 19
+output_dim: 3
+
+# Training hyperparameters
+learning_rate: 0.01
+lambda_reg: 0.001
+num_epochs: 100
+batch_size: 256
+eval_every: 10
+
+# Weight initialization
+weight_init_scale: 1.0
+
+# Dataset settings
+dataset_name: example_dataset.csv
