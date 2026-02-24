@@ -6,3 +6,4 @@ log/
 lotf.egg-info/
 checkpoints/.venv/
 PROGRESS.txt
+tdd-summary-*/
