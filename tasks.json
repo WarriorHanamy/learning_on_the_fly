@@ -44,7 +44,7 @@
         ]
       },
       "skills": ["writing-python", "installing-dependencies", "verification-before-completion"],
-      "complete": false
+      "complete": true
     },
     {
       "task": "Create YAML config loader module",

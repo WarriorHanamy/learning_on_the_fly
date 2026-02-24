@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lotf"
+version = "0.1.0"
+description = "A Python package to learn agile flight using differentiable simulation."
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Michael Pan", email = "michael.pan31415@gmail.com"}
+]
+requires-python = ">=3.10,<3.11"
+dependencies = [
+    "jax>=0.4.30",
+    "jaxlib>=0.4.30",
+    "flax>=0.8.5",
+    "optax>=0.2.4",
+    "orbax-checkpoint>=0.6.4",
+    "chex>=0.1.90",
+    "jax-dataclasses>=1.6.2",
+    "numpy>=1.26.4",
+    "scipy>=1.13.1",
+    "pandas",
+    "matplotlib",
+    "seaborn",
+    "pyyaml",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+cuda12 = [
+    "jax[cuda12]>=0.4.30",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "pytest-repeat>=0.9",
+    "pytest-rerunfailures>=15.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["lotf*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "pytest-repeat>=0.9",
+    "pytest-rerunfailures>=15.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
