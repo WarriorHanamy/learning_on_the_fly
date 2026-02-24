@@ -29,6 +29,9 @@ dependencies = [
     "tqdm",
 ]
 
+[project.scripts]
+lotf = "lotf.__main__:main"
+
 [project.optional-dependencies]
 cuda12 = [
     "jax[cuda12]>=0.4.30",

@@ -313,7 +313,7 @@
         ]
       },
       "skills": ["tdd-workflow", "writing-python", "cli-guideline", "verification-before-completion"],
-      "complete": false
+      "complete": true
     },
     {
       "task": "Verify complete training workflow",
