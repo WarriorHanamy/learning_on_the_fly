@@ -3,37 +3,39 @@
 ## Summary
 
 All functional requirements addressed:
-- FR-1: Module structure and exports - `lotf/configs/__init__.py`
-- FR-2: Dataclass configs (TrainingConfig, EnvConfig, SimConfig) - `lotf/configs/configs.py`
-- FR-3: YAML loader (load_config) - `lotf/configs/loader.py`
-- FR-4: FileNotFoundError for invalid paths
-- FR-5: ValueError for missing fields and malformed YAML
-- FR-6: merge_config utility
+- FR-1: CLI Module Executable - Script runs via `uv run python -m lotf.scripts.train_traj_tracking`
+- FR-2: CLI Argument Parsing - `--config`, `--checkpoint`, `--trajectory-output` arguments
+- FR-3: Environment Creation - `create_env()` returns wrapped `TrajTrackingStateEnv`
+- FR-4: Reference Trajectory Loading - Uses `ref_traj_name` from config
+- FR-5: Training Loop - BPTT training with checkpoint saving
+- FR-6: Trajectory Export - CSV export with position and quaternion data
 
 ## Scenario Documents
 
-- `docs/scenario/load-config-valid-yaml.md`
-- `docs/scenario/load-config-invalid-path.md`
-- `docs/scenario/load-config-malformed-yaml.md`
-- `docs/scenario/load-config-missing-fields.md`
-- `docs/scenario/merge-config-overrides.md`
-- `docs/scenario/dataclass-config-definitions.md`
+- `docs/scenario/cli-module-executable.md`
+- `docs/scenario/cli-argument-parsing.md`
+- `docs/scenario/create-env-traj-tracking.md`
+- `docs/scenario/reference-trajectory-loading.md`
+- `docs/scenario/training-loop.md`
+- `docs/scenario/trajectory-export.md`
 
 ## Test Files
 
-- `tests/configs/test_config_loader.py` - 30 tests, all passing
+- `tests/scripts/test_train_traj_tracking.py` - 28 tests, 26 passing, 2 skipped
 
 ## How to Test
 
-Run: `python -m pytest tests/configs/test_config_loader.py -v`
+Run: `.venv/bin/python -m pytest tests/scripts/test_train_traj_tracking.py -v`
 
 ## Files Created
 
-- `lotf/configs/__init__.py` - Module exports
-- `lotf/configs/configs.py` - Dataclass definitions
-- `lotf/configs/loader.py` - Loader and merge utilities
-- `tests/__init__.py` - Tests package
-- `tests/configs/__init__.py` - Config tests package
-- `tests/configs/test_config_loader.py` - Unit tests
+- `lotf/scripts/train_traj_tracking.py` - Main training script
+- `tests/scripts/test_train_traj_tracking.py` - Unit tests
+- `configs/traj_tracking.yaml` - Updated with correct ref_traj_name
+
+## Files Modified
+
+- `lotf/scripts/__init__.py` - Updated exports
+- `configs/traj_tracking.yaml` - Fixed ref_traj_name case
 
 Implementation complete and all tests passing after refactoring.

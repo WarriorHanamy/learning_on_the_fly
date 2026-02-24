@@ -2,14 +2,8 @@
 
 ## Regression Test Results
 
-- Complete test suite executed: `python -m pytest tests/`
-- All tests pass: Yes (30/30)
-- No regression found - this is a new module with no prior tests
-
-## Integration Test Results
-
-All integration tests passed:
-- Module imports correctly
-- TrainingConfig can be created and is frozen
-- load_config works with YAML files
-- merge_config preserves unmodified values
+- Complete test suite executed: `.venv/bin/python -m pytest tests/ -v`
+- All tests pass: 86 passed, 4 skipped
+- No regression found in unrelated tests
+- All existing `test_train_state_hovering.py` tests still pass
+- All new `test_train_traj_tracking.py` tests pass

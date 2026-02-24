@@ -14,7 +14,7 @@ max_sim_time: 5.0
 delay: 0.04
 
 # Reference trajectory
-ref_traj_name: FIG8
+ref_traj_name: fig8
 skip_start: true
 
 # Simulation dynamics config

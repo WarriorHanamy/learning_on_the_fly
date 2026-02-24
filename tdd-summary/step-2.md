@@ -2,9 +2,9 @@
 
 ## Scenario Documents Created
 
-- FR-1/FR-3: Load Config from Valid YAML - `docs/scenario/load-config-valid-yaml.md`
-- FR-4: Load Config with Invalid Path - `docs/scenario/load-config-invalid-path.md`
-- FR-5: Load Config with Malformed YAML - `docs/scenario/load-config-malformed-yaml.md`
-- FR-5: Load Config with Missing Required Fields - `docs/scenario/load-config-missing-fields.md`
-- FR-6: Merge Config with Overrides - `docs/scenario/merge-config-overrides.md`
-- FR-2: Dataclass Config Definitions - `docs/scenario/dataclass-config-definitions.md`
+- FR-1: CLI Module Executable - `docs/scenario/cli-module-executable.md`
+- FR-2: CLI Argument Parsing - `docs/scenario/cli-argument-parsing.md`
+- FR-3: Environment Creation - `docs/scenario/create-env-traj-tracking.md`
+- FR-4: Reference Trajectory Loading - `docs/scenario/reference-trajectory-loading.md`
+- FR-5: Training Loop - `docs/scenario/training-loop.md`
+- FR-6: Trajectory Export - `docs/scenario/trajectory-export.md`

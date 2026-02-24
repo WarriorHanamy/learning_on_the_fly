@@ -267,7 +267,7 @@
         ]
       },
       "skills": ["tdd-workflow", "writing-python", "cli-guideline", "testing-safe-protocol"],
-      "complete": false
+      "complete": true
     },
     {
       "task": "Create project entry point script",
