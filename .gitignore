@@ -8,3 +8,6 @@ checkpoints/.venv/
 PROGRESS.txt
 tdd-summary-*/
 *-tmp/
+
+# Backup folders
+*_backup/

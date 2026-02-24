@@ -357,7 +357,7 @@
         ]
       },
       "skills": ["verification-before-completion", "documenting"],
-      "complete": false
+      "complete": true
     }
   ]
 }
