@@ -95,8 +95,6 @@ The project includes a `bin/python_exec` wrapper script that automatically handl
 ./bin/python_exec -m lotf residual --help
 ```
 
-**Alternative:** You can also use `uv run lotf` directly instead of `./bin/python_exec -m lotf` for the same commands.
-
 ## Project Structure
 
 ```
