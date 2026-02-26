@@ -115,7 +115,7 @@ lotf/
 - [Configuration Guide](docs/configuration.md) - Complete parameter reference
 - [Training Guide](docs/training.md) - Training workflows and examples
 - [Deployment Guide](docs/deployment.md) - Docker and ROS2 integration
-- [Design Decisions](DESIGN_DECISIONS.md) - Key architectural decisions and rationale
+ - [Design Decisions](https://github.com/WarriorHanamy/learning_on_the_fly/wiki/Design-Decisions) - Key architectural decisions and rationale
 - [CODEBASE.md](CODEBASE.md) - Detailed codebase documentation
 - [USAGE.md](USAGE.md) - Comprehensive CLI usage guide
 - [examples/](examples/) - Jupyter notebooks with step-by-step tutorials
