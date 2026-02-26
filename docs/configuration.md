@@ -8,12 +8,13 @@ Complete guide to all configuration files and parameters in Learning on the Fly 
 - [File Locations](#file-locations)
 - [Common Parameters](#common-parameters)
 - [Task-Specific Parameters](#task-specific-parameters)
-  - [State-Based Hovering](#state-based-hovering-configsstate_hoveringyaml)
-  - [Trajectory Tracking](#trajectory-tracking-configstraj_trackingyaml)
-  - [Vision-Based Hovering](#vision-based-hovering-configsvision_hoveringyaml)
-  - [Residual Dynamics](#residual-dynamics-configsresidual_dynamicsyaml)
+  - [State-Based Hovering (`configs/state_hovering.yaml`)](#state-based-hovering-configsstate_hoveringyaml)
+  - [Trajectory Tracking (`configs/traj_tracking.yaml`)](#trajectory-tracking-configstraj_trackingyaml)
+  - [Vision-Based Hovering (`configs/vision_hovering.yaml`)](#vision-based-hovering-configsvision_hoveringyaml)
+  - [Residual Dynamics (`configs/residual_dynamics.yaml`)](#residual-dynamics-configsresidual_dynamicsyaml)
 - [Complete YAML Examples](#complete-yaml-examples)
 - [Parameter Tuning Guidelines](#parameter-tuning-guidelines)
+- [Configuration Validation](#configuration-validation)
 
 ## Configuration System Overview
 
@@ -903,6 +904,286 @@ The relationship between network size and training data (controlled by `num_envs
   - Increase noise parameters
   - Use ensemble (residual dynamics)
 
+## Configuration Validation
+
+Before starting full training, it's recommended to validate your configuration files to ensure they are correctly formatted and compatible with the training scripts. The `./bin/python_exec` wrapper simplifies configuration validation by automatically setting up the required Python environment.
+
+### Using python_exec for Config Validation
+
+The `python_exec` wrapper script located at `./bin/python_exec` automatically:
+- Sets up the virtual environment if it doesn't exist
+- Configures `PYTHONPATH` to include the project root
+- Ensures consistent execution context from the project directory
+
+This makes it ideal for validating configuration files without needing to manually activate virtual environments or manage environment variables.
+
+### Validating Configuration Syntax
+
+Check that your YAML files are syntactically correct:
+
+```bash
+# Validate state hovering configuration
+./bin/python_exec -c "
+import yaml
+with open('configs/state_hovering.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+    print('Configuration loaded successfully!')
+    print(f'Number of environments: {config.get(\"num_envs\")}')
+    print(f'Max epochs: {config.get(\"max_epochs\")}')
+"
+```
+
+```bash
+# Validate trajectory tracking configuration
+./bin/python_exec -c "
+import yaml
+with open('configs/traj_tracking.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+    print('Configuration loaded successfully!')
+    print(f'Reference trajectory: {config.get(\"ref_traj_name\")}')
+    print(f'Number of environments: {config.get(\"num_envs\")}')
+"
+```
+
+```bash
+# Validate residual dynamics configuration
+./bin/python_exec -c "
+import yaml
+with open('configs/residual_dynamics.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+    print('Configuration loaded successfully!')
+    print(f'Number of models: {config.get(\"num_models\")}')
+    print(f'Input dimension: {config.get(\"input_dim\")}')
+"
+```
+
+### Testing Configurations with Short Runs
+
+Run a short test training to verify configuration parameters work correctly:
+
+```bash
+# Test state hovering config with reduced epochs
+./bin/python_exec -c "
+import yaml
+with open('configs/state_hovering.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+    # Reduce epochs for quick test
+    config['max_epochs'] = 2
+    config['num_envs'] = 10
+with open('configs/state_hovering_test.yaml', 'w') as f:
+    yaml.dump(config, f)
+print('Test configuration created: configs/state_hovering_test.yaml')
+"
+```
+
+```bash
+# Run quick test with modified config
+./bin/python_exec -m lotf.scripts.train_state_hovering --config configs/state_hovering_test.yaml
+```
+
+### Checking Configuration Parameter Types
+
+Verify that all configuration parameters have the correct data types:
+
+```bash
+# Validate parameter types for state hovering
+./bin/python_exec -c "
+import yaml
+from typing import get_type_hints
+
+expected_types = {
+    'seed': int,
+    'num_envs': int,
+    'max_epochs': int,
+    'sim_dt': float,
+    'max_sim_time': float,
+    'delay': float,
+    'reward_sharpness': float,
+    'action_penalty_weight': float,
+    'hover_target': list,
+}
+
+with open('configs/state_hovering.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+
+print('Validating parameter types:')
+for param, expected_type in expected_types.items():
+    if param in config:
+        actual_type = type(config[param])
+        match = actual_type == expected_type
+        status = '✓' if match else '✗'
+        print(f'{status} {param}: expected {expected_type.__name__}, got {actual_type.__name__}')
+    else:
+        print(f'⚠ {param}: not found in config')
+"
+```
+
+### Verifying Configuration Parameters Against Training Script
+
+Check that all required parameters are present in the configuration:
+
+```bash
+# Verify residual dynamics configuration
+./bin/python_exec -c "
+import yaml
+
+required_params = [
+    'num_models',
+    'input_dim',
+    'output_dim',
+    'learning_rate',
+    'lambda_reg',
+    'num_epochs',
+    'batch_size',
+    'eval_every',
+    'weight_init_scale',
+    'dataset_name',
+]
+
+with open('configs/residual_dynamics.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+
+print('Checking required parameters:')
+all_present = True
+for param in required_params:
+    present = param in config
+    status = '✓' if present else '✗'
+    print(f'{status} {param}')
+    if not present:
+        all_present = False
+
+if all_present:
+    print('\\nAll required parameters are present!')
+else:
+    print('\\nWarning: Some required parameters are missing!')
+"
+```
+
+### Quick Configuration Sanity Check
+
+Perform a quick sanity check on configuration values:
+
+```bash
+# Sanity check for state hovering config
+./bin/python_exec -c "
+import yaml
+
+with open('configs/state_hovering.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+
+print('Configuration sanity check:')
+print(f'num_envs ({config[\"num_envs\"]}): ', end='')
+if 1 <= config['num_envs'] <= 1000:
+    print('✓ Valid range [1, 1000]')
+else:
+    print('✗ Out of range [1, 1000]')
+
+print(f'max_epochs ({config[\"max_epochs\"]}): ', end='')
+if 1 <= config['max_epochs'] <= 10000:
+    print('✓ Valid range [1, 10000]')
+else:
+    print('✗ Out of range [1, 10000]')
+
+print(f'sim_dt ({config[\"sim_dt\"]}): ', end='')
+if 0.001 <= config['sim_dt'] <= 0.1:
+    print('✓ Valid range [0.001, 0.1]')
+else:
+    print('✗ Out of range [0.001, 0.1]')
+
+print(f'delay ({config[\"delay\"]}): ', end='')
+if 0.0 <= config['delay'] <= 1.0:
+    print('✓ Valid range [0.0, 1.0]')
+else:
+    print('✗ Out of range [0.0, 1.0]')
+
+print(f'reward_sharpness ({config[\"reward_sharpness\"]}): ', end='')
+if 0.1 <= config['reward_sharpness'] <= 10.0:
+    print('✓ Valid range [0.1, 10.0]')
+else:
+    print('✗ Out of range [0.1, 10.0]')
+"
+```
+
+### Comparing Configuration Files
+
+Compare two configuration files to identify differences:
+
+```bash
+# Compare default and custom configurations
+./bin/python_exec -c "
+import yaml
+
+with open('configs/state_hovering.yaml', 'r') as f:
+    default_config = yaml.safe_load(f)
+
+with open('configs/state_hovering_custom.yaml', 'r') as f:
+    custom_config = yaml.safe_load(f)
+
+print('Comparing configurations:')
+print('\\nParameters changed in custom config:')
+for key in default_config:
+    if key in custom_config:
+        if default_config[key] != custom_config[key]:
+            print(f'  {key}: {default_config[key]} -> {custom_config[key]}')
+    else:
+        print(f'  {key}: removed in custom config')
+
+print('\\nNew parameters in custom config:')
+for key in custom_config:
+    if key not in default_config:
+        print(f'  {key}: {custom_config[key]}')
+"
+```
+
+### Validation Before Training
+
+Always validate your configuration before starting a full training run:
+
+```bash
+# Complete validation workflow
+./bin/python_exec -c "
+import yaml
+import sys
+
+def validate_config(config_path):
+    print(f'Validating {config_path}...')
+    try:
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        print('✓ YAML syntax is valid')
+        print(f'✓ Configuration loaded: {len(config)} top-level parameters')
+        return True
+    except yaml.YAMLError as e:
+        print(f'✗ YAML syntax error: {e}')
+        return False
+    except FileNotFoundError:
+        print(f'✗ Configuration file not found: {config_path}')
+        return False
+
+configs = [
+    'configs/state_hovering.yaml',
+    'configs/traj_tracking.yaml',
+    'configs/vision_hovering.yaml',
+    'configs/residual_dynamics.yaml',
+]
+
+print('=' * 60)
+all_valid = True
+for config in configs:
+    if not validate_config(config):
+        all_valid = False
+    print()
+
+print('=' * 60)
+if all_valid:
+    print('All configurations validated successfully!')
+    sys.exit(0)
+else:
+    print('Some configurations failed validation. Please check errors above.')
+    sys.exit(1)
+"
+```
+
 ## Additional Resources
 
 - [Training Guide](training.md) - Complete training workflows and examples
@@ -915,9 +1196,26 @@ The relationship between network size and training data (controlled by `num_envs
 2. **Document changes** with comments in YAML files
 3. **Save successful configs** with descriptive names (e.g., `state_hovering_best.yaml`)
 4. **Use config inheritance** by creating base configs and task-specific overrides
-5. **Validate configs** by running a short test before full training
+5. **Validate configs** using `./bin/python_exec` before full training (see [Configuration Validation](#configuration-validation))
 6. **Monitor GPU memory** usage when scaling up `num_envs`
 7. **Use consistent naming** across config files for easy comparison
 8. **Keep configs simple** - only override necessary parameters
 9. **Test configs** on small scale before full training
 10. **Backup checkpoints** with corresponding configs for reproducibility
+
+### Using python_exec for Configuration Management
+
+The `./bin/python_exec` wrapper simplifies configuration validation and testing:
+
+```bash
+# Quick config validation
+./bin/python_exec -c "import yaml; yaml.safe_load(open('configs/state_hovering.yaml')); print('Config valid!')"
+
+# Test config with reduced parameters
+./bin/python_exec -m lotf.scripts.train_state_hovering --config configs/state_hovering.yaml --output checkpoints/test
+
+# Compare configs
+./bin/python_exec -c "import yaml; print(yaml.safe_load(open('configs/state_hovering.yaml')))"
+```
+
+See [Configuration Validation](#configuration-validation) for detailed examples.
