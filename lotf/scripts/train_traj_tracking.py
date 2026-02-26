@@ -283,6 +283,29 @@ def load_dummy_residual_params() -> Any:
     return ckptr.restore(path)
 
 
+def get_unique_checkpoint_path(base_path: Path) -> Path:
+    """Generate a unique checkpoint path by appending timestamp if directory exists.
+
+    Args:
+        base_path: Base checkpoint path (without extension).
+
+    Returns:
+        Unique checkpoint path (either original or with timestamp suffix).
+    """
+    path = base_path.resolve() if isinstance(base_path, Path) else Path(base_path).resolve()
+    if not path.exists():
+        return path
+
+    # Generate timestamp suffix
+    from datetime import datetime
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    new_path = path.parent / f"{path.name}_{timestamp}"
+
+    print(f"Checkpoint directory exists, using: {new_path}")
+    return new_path
+
+
 def save_checkpoint(output_path: str, params: Any) -> None:
     """Save policy parameters to checkpoint.
 
@@ -290,13 +313,13 @@ def save_checkpoint(output_path: str, params: Any) -> None:
         output_path: Path to save the checkpoint (without extension).
         params: Policy parameters to save.
     """
-    # Ensure parent directory exists
-    path = Path(output_path)
+    # Ensure parent directory exists and generate unique path
+    path = get_unique_checkpoint_path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
     ckptr = PyTreeCheckpointer()
-    ckptr.save(output_path, params)
-    print(f"Policy saved successfully to: {output_path}")
+    ckptr.save(str(path), params)
+    print(f"Policy saved successfully to: {path}")
 
 
 def export_trajectory(traj: Any, output_path: str) -> None:
