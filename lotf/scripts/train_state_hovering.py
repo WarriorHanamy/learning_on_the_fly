@@ -293,10 +293,12 @@ def save_checkpoint(output_path: str, params: Any) -> None:
     """
     # Ensure parent directory exists
     path = Path(output_path)
+    # Convert to absolute path (required by orbax)
+    path = path.resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
 
     ckptr = PyTreeCheckpointer()
-    ckptr.save(output_path, params)
+    ckptr.save(str(path), params)
     print(f"Policy saved successfully to: {output_path}")
 
 

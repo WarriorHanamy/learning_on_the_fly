@@ -31,7 +31,7 @@ SBUS_VAL_RANGE = SBUS_MAX_VAL - SBUS_MIN_VAL
 class QuadrotorState(CustomPyTree):
     """
     Data structure representing the full state of a quadrotor.
-    
+
     Attributes:
         p: position in world frame
         R: rotation matrix (body to world)
@@ -43,6 +43,7 @@ class QuadrotorState(CustomPyTree):
         res_acc_mean: predicted residual acceleration from learned model
         dr_key: random key for domain randomization
     """
+
     p: jax.Array = field_jnp([0.0, 0.0, 0.0])
     R: jax.Array = field_jnp(jnp.eye(3))
     v: jax.Array = field_jnp([0.0, 0.0, 0.0])
@@ -70,8 +71,7 @@ class QuadrotorState(CustomPyTree):
     def as_vector(self):
         """Serializes the state into a flat jax array."""
         return jnp.concatenate(
-            [self.p, self.R.flatten(), self.v, self.omega, self.domega,
-             self.motor_omega]
+            [self.p, self.R.flatten(), self.v, self.omega, self.domega, self.motor_omega]
         )
 
     @classmethod
@@ -89,8 +89,8 @@ class QuadrotorState(CustomPyTree):
 class Quadrotor:
     """
     Full quadrotor model supporting high-fidelity and residual dynamics.
-    
-    This class handles the simulation of quadrotor physics, including low-level 
+
+    This class handles the simulation of quadrotor physics, including low-level
     control (Betaflight-style), motor dynamics, and optional learned residuals.
     """
 
@@ -118,10 +118,8 @@ class Quadrotor:
         sim_dyn_config=None,
     ):
         """Initializes the quadrotor physical parameters and configuration."""
-        assert (
-            rotors_config == "cross"
-        ), "Only cross rotors configuration is supported"
-        
+        assert rotors_config == "cross", "Only cross rotors configuration is supported"
+
         # physical constants
         self._drone_name = drone_name
         self._mass = mass
@@ -138,11 +136,11 @@ class Quadrotor:
         self._thrust_map = thrust_map
         self._kappa = kappa
         self._thrust_min = thrust_min
-        
+
         # initialize thrust floor
         if thrust_min <= 0.0:
             self._thrust_min += thrust_map[0] * motor_omega_min**2
-            
+
         self._thrust_max = thrust_max
         self._rotors_config = rotors_config
         self._dt_low_level = dt_low_level
@@ -241,9 +239,7 @@ class Quadrotor:
         Matrix mapping individual thrusts [f1, f2, f3, f4] to total thrust and body torques.
         Returns: 4x4 allocation matrix.
         """
-        rotor_coordinates = jnp.stack(
-            [self._tbm_fr, self._tbm_bl, self._tbm_br, self._tbm_fl]
-        )
+        rotor_coordinates = jnp.stack([self._tbm_fr, self._tbm_bl, self._tbm_br, self._tbm_fl])
         x = rotor_coordinates[:, 0]
         y = rotor_coordinates[:, 1]
 
@@ -282,14 +278,14 @@ class Quadrotor:
     ) -> QuadrotorState:
         """
         Main simulation step for the quadrotor.
-        
+
         Args:
             state: current state
             f_d: total desired thrust [N]
             omega_d: desired body rates [rad/s]
             res_model_params: parameters for the neural network residual model
             dt: integration time step [s]
-            
+
         Returns:
             next_state: updated state after dt
         """
@@ -300,15 +296,29 @@ class Quadrotor:
             R = state.R
             v = state.v
             # prepare input vector for the mlp
-            state_for_res = jnp.array([
-                p[0], p[1], p[2],
-                R[0, 0], R[0, 1], R[0, 2],
-                R[1, 0], R[1, 1], R[1, 2],
-                R[2, 0], R[2, 1], R[2, 2],
-                v[0], v[1], v[2],
-                f_d,
-                omega_d[0], omega_d[1], omega_d[2]
-            ])
+            state_for_res = jnp.array(
+                [
+                    p[0],
+                    p[1],
+                    p[2],
+                    R[0, 0],
+                    R[0, 1],
+                    R[0, 2],
+                    R[1, 0],
+                    R[1, 1],
+                    R[1, 2],
+                    R[2, 0],
+                    R[2, 1],
+                    R[2, 2],
+                    v[0],
+                    v[1],
+                    v[2],
+                    f_d,
+                    omega_d[0],
+                    omega_d[1],
+                    omega_d[2],
+                ]
+            )
 
             # compute residual acceleration mean
             preds = self.compute_res_fn(res_model_params, state_for_res)
@@ -330,20 +340,16 @@ class Quadrotor:
 
                 def control_fn(state, _unused):
                     # compute low level commands (betaflight logic)
-                    motor_omega_d = self._llc_betaflight(
-                        state, f_d, omega_d, self._dt_low_level
-                    )
+                    motor_omega_d = self._llc_betaflight(state, f_d, omega_d, self._dt_low_level)
                     # integrate dynamics at the controller frequency
-                    state = self._full_dyn(
-                        state, motor_omega_d, self._dt_low_level
-                    )
+                    state = self._full_dyn(state, motor_omega_d, self._dt_low_level)
                     return state, None
 
                 # calculate number of steps required to reach dt
                 N = np.ceil(dt / self._dt_low_level).item()
-                assert np.isclose(
-                    N * self._dt_low_level, dt
-                ), f"dt ({dt}) must be a multiple of dt_low_level ({self._dt_low_level})"
+                assert np.isclose(N * self._dt_low_level, dt), (
+                    f"dt ({dt}) must be a multiple of dt_low_level ({self._dt_low_level})"
+                )
 
                 state_new, _ = jax.lax.scan(control_fn, state, length=N)
                 return state_new
@@ -352,8 +358,7 @@ class Quadrotor:
             else:
                 if self.use_forward_residual:
                     p_new, R_new, v_new = self._simplified_res_dyn(
-                        state.p, state.R, state.v, f_d / self._mass, 
-                        state.res_acc_mean, omega_d, dt
+                        state.p, state.R, state.v, f_d / self._mass, state.res_acc_mean, omega_d, dt
                     )
                 else:
                     p_new, R_new, v_new = simplified_dyn(
@@ -385,18 +390,18 @@ class Quadrotor:
             p_tan, R_tan, v_tan = tan_out
 
             # decay factor for long-horizon stability (set to 1.0 by default)
-            decay_factor = 1. 
+            decay_factor = 1.0
 
             # update the tangent state for jvp output
+            # Note: dr_key is excluded from gradient propagation (PRNG keys are non-differentiable)
             state_dot_new = state_dot.replace(
-                p=decay_factor * p_tan, 
+                p=decay_factor * p_tan,
                 R=decay_factor * R_tan,
-                v=decay_factor * v_tan, 
-                dr_key=state.dr_key
+                v=decay_factor * v_tan,
             )
 
             return state_new, state_dot_new
-        
+
         # execute the step
         return _step(state, f_d, omega_d, dt)
 
@@ -425,15 +430,15 @@ class Quadrotor:
         k3_p, k3_v = dynamics(p + 0.5 * dt * k2_p, v + 0.5 * dt * k2_v)
         k4_p, k4_v = dynamics(p + dt * k3_p, v + dt * k3_v)
 
-        p_new = p + (dt / 6.0) * (k1_p + 2*k2_p + 2*k3_p + k4_p)
-        v_new = v + (dt / 6.0) * (k1_v + 2*k2_v + 2*k3_v + k4_v)
+        p_new = p + (dt / 6.0) * (k1_p + 2 * k2_p + 2 * k3_p + k4_p)
+        v_new = v + (dt / 6.0) * (k1_v + 2 * k2_v + 2 * k3_v + k4_v)
 
         # analytical rotation update
         R_delta = rotation_matrix_from_vector(dt * omega)
         R_new = R @ R_delta
 
         return p_new, R_new, v_new
-    
+
     def _full_dyn(self, state: QuadrotorState, motor_omega_d, dt):
         """High-fidelity physics integration using RK4."""
         p = state.p
@@ -447,11 +452,12 @@ class Quadrotor:
         key_thrust, key_drag = jax.random.split(state.dr_key)
         thrust_map = self._thrust_map[0]
         thrust_map = jax.random.uniform(
-            key_thrust, thrust_map.shape,
+            key_thrust,
+            thrust_map.shape,
             minval=0.85 * thrust_map,
             maxval=1.15 * thrust_map,
         )
-        
+
         # calculate individual motor thrusts
         f = thrust_map * motor_omega**2
         f_vec = jnp.array([0, 0, jnp.sum(f)])
@@ -465,14 +471,14 @@ class Quadrotor:
         # rk4 for p and v
         def int_pv(p, v):
             return v, acc
-        
+
         k1_p, k1_v = int_pv(p, v)
         k2_p, k2_v = int_pv(p + 0.5 * dt * k1_p, v + 0.5 * dt * k1_v)
         k3_p, k3_v = int_pv(p + 0.5 * dt * k2_p, v + 0.5 * dt * k2_v)
         k4_p, k4_v = int_pv(p + dt * k3_p, v + dt * k3_v)
-        
-        p_new = p + (dt / 6.0) * (k1_p + 2*k2_p + 2*k3_p + k4_p)
-        v_new = v + (dt / 6.0) * (k1_v + 2*k2_v + 2*k3_v + k4_v)
+
+        p_new = p + (dt / 6.0) * (k1_p + 2 * k2_p + 2 * k3_p + k4_p)
+        v_new = v + (dt / 6.0) * (k1_v + 2 * k2_v + 2 * k3_v + k4_v)
 
         # orientation update
         R_delta = rotation_matrix_from_vector(dt * omega)
@@ -490,25 +496,32 @@ class Quadrotor:
         J_inv = jnp.linalg.inv(J)
         f_T_and_tau = self.allocation_matrix @ f
         f_T, tau = f_T_and_tau[0], f_T_and_tau[1:]
-        
+
         def int_omega(omega):
             return J_inv @ (tau - jnp.cross(omega, J @ omega) + inertia_torque)
-        
+
         k1_omega = int_omega(omega)
         k2_omega = int_omega(omega + 0.5 * dt * k1_omega)
         k3_omega = int_omega(omega + 0.5 * dt * k2_omega)
         k4_omega = int_omega(omega + dt * k3_omega)
-        
-        omega_new = omega + (dt / 6.0) * (k1_omega + 2*k2_omega + 2*k3_omega + k4_omega)
+
+        omega_new = omega + (dt / 6.0) * (k1_omega + 2 * k2_omega + 2 * k3_omega + k4_omega)
         domega_new = int_omega(omega)
 
         # motor dynamic lag
-        motor_omega_new = (motor_omega - motor_omega_d) * jnp.exp(-dt / self._motor_tau) + motor_omega_d
+        motor_omega_new = (motor_omega - motor_omega_d) * jnp.exp(
+            -dt / self._motor_tau
+        ) + motor_omega_d
         motor_omega_new = jnp.clip(motor_omega_new, self._motor_omega_min, self._motor_omega_max)
 
         return state.replace(
-            p=p_new, R=R_new, v=v_new, omega=omega_new,
-            domega=domega_new, motor_omega=motor_omega_new, acc=acc,
+            p=p_new,
+            R=R_new,
+            v=v_new,
+            omega=omega_new,
+            domega=domega_new,
+            motor_omega=motor_omega_new,
+            acc=acc,
         )
 
     def _llc_betaflight(self, state: QuadrotorState, f_T, omega_cmd, dt):
@@ -528,11 +541,9 @@ class Quadrotor:
 
         # allocation and mixer
         alpha = jnp.concatenate([throttle[None], torque])
-        B_allocation = jnp.array(
-            [[1, -1, -1, -1], [1, 1, 1, -1], [1, -1, 1, 1], [1, 1, -1, 1]]
-        )
+        B_allocation = jnp.array([[1, -1, -1, -1], [1, 1, 1, -1], [1, -1, 1, 1], [1, 1, -1, 1]])
         motor_throttle = B_allocation @ alpha
-        
+
         # conversion chain: throttle -> dshot -> motor rad/s
         dshot = self._throttle_to_dshot(motor_throttle)
         motor_omega_d = self._dshot_to_motor_speeds(dshot)
@@ -541,8 +552,12 @@ class Quadrotor:
 
     def _force_to_sbus(self, force):
         """Maps physical force to internal SBUS command units."""
-        coeffs = jnp.array([-770.1619262695312, 982.5460205078125, -149.59286499023438, 4.386282444000244])
-        sbus = (coeffs[0] + coeffs[1] * jnp.sqrt(force + 1) + coeffs[2] * force + coeffs[3] * force**2)
+        coeffs = jnp.array(
+            [-770.1619262695312, 982.5460205078125, -149.59286499023438, 4.386282444000244]
+        )
+        sbus = (
+            coeffs[0] + coeffs[1] * jnp.sqrt(force + 1) + coeffs[2] * force + coeffs[3] * force**2
+        )
         sbus = jnp.clip(sbus, 0, SBUS_MAX_VAL)
         return sbus
 
@@ -589,13 +604,12 @@ class Quadrotor:
     def motor_omega_to_thrust(self, motor_omega):
         """Converts motor rad/s to total thrust force."""
         return self._thrust_map[0] * motor_omega**2
-    
+
     def print_config(self):
         """Prints current simulation configuration to console."""
         print(f"[QUAD OBJ] Drone name: {self._drone_name}")
         print(f"[QUAD OBJ] Use high fidelity: {self.use_high_fidelity}")
         print(f"[QUAD OBJ] Use forward residual: {self.use_forward_residual}")
-
 
 
 def simplified_dyn(
@@ -630,8 +644,8 @@ def simplified_dyn(
     k3_p, k3_v = dynamics(p + 0.5 * dt * k2_p, v + 0.5 * dt * k2_v)
     k4_p, k4_v = dynamics(p + dt * k3_p, v + dt * k3_v)
 
-    p_new = p + (dt / 6.0) * (k1_p + 2*k2_p + 2*k3_p + k4_p)
-    v_new = v + (dt / 6.0) * (k1_v + 2*k2_v + 2*k3_v + k4_v)
+    p_new = p + (dt / 6.0) * (k1_p + 2 * k2_p + 2 * k3_p + k4_p)
+    v_new = v + (dt / 6.0) * (k1_v + 2 * k2_v + 2 * k3_v + k4_v)
 
     # Exact step for orientation
     R_delta = rotation_matrix_from_vector(dt * omega)
