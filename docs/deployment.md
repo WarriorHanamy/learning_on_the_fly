@@ -2,6 +2,49 @@
 
 This guide covers Docker deployment, checkpoint management, and ROS2 integration for the Learning on the Fly (LOTF) project.
 
+## Execution Contexts: Local Development vs Docker
+
+When working with LOTF, the execution command depends on your context:
+
+### Local Development
+
+Use the `./bin/python_exec` wrapper script for all local development:
+
+```bash
+# The python_exec wrapper automatically:
+# - Sets PYTHONPATH to include project root
+# - Creates .venv if it doesn't exist (using uv sync --extra cuda12)
+# - Runs commands with uv run python
+# - Cleans up environment on exit
+
+# Examples for local development:
+./bin/python_exec --version
+./bin/python_exec -m lotf --help
+./bin/python_exec -m pytest tests/
+./bin/python_exec -c "import jax; print(jax.devices())"
+```
+
+**Important**: Always use `./bin/python_exec` for local development. Never use `python` or `python3` directly.
+
+### Docker Environment
+
+Use `uv run python` directly in Docker containers:
+
+```bash
+# In Docker containers, the environment is already configured
+# No wrapper script is needed - use uv run python directly
+
+# Examples for Docker:
+docker run --gpus all lotf:latest uv run python --version
+docker run --gpus all lotf:latest uv run python -m lotf --help
+docker run --gpus all lotf:latest uv run python -m pytest tests/
+docker run --gpus all lotf:latest uv run python -c "import jax; print(jax.devices())"
+```
+
+**Key Difference**:
+- **Local**: Use `./bin/python_exec` (wrapper handles environment setup)
+- **Docker**: Use `uv run python` (environment is pre-configured in container)
+
 ## Docker Deployment
 
 ### Building the Docker Image
@@ -85,24 +128,30 @@ docker build -t lotf:latest --build-arg UV_INDEX_URL=https://pypi.tuna.tsinghua.
 docker run --gpus all -it -e UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple lotf:latest
 ```
 
-#### Entry Point Pattern
+#### Entry Point Pattern (Docker Only)
 
-Always use `uv run python` as the entry point for running Python code:
+In Docker containers, always use `uv run python` as the entry point for running Python code:
 
 ```bash
-# Correct: uv run python ensures proper environment
+# Correct: uv run python ensures proper environment in container
 docker run lotf:latest uv run python -m lotf --help
 
 # Incorrect: direct python may use system Python
 docker run lotf:latest python -m lotf --help
 ```
 
+**Note**: This pattern applies only to Docker environments. For local development, use `./bin/python_exec` instead.
+
 #### GPU Access Pattern
 
 Always include `--gpus all` for GPU-accelerated workloads:
 
 ```bash
+# Docker environment
 docker run --gpus all -it lotf:latest uv run python -c "import jax; print(jax.devices())"
+
+# Local development
+./bin/python_exec -c "import jax; print(jax.devices())"
 ```
 
 #### Mirror Selection
@@ -116,6 +165,60 @@ Use the appropriate mirror based on your location:
 ## Checkpoint Management
 
 LOTF uses Orbax's `PyTreeCheckpointer` for saving and loading model parameters.
+
+### Execution Contexts for Checkpoint Operations
+
+#### Local Development
+
+For local development, use `./bin/python_exec` to run checkpoint-related scripts:
+
+```bash
+# Verify checkpoint integrity locally
+./bin/python_exec -c "
+from orbax.checkpoint import PyTreeCheckpointer
+import jax.numpy as jnp
+
+ckptr = PyTreeCheckpointer()
+params = ckptr.restore('checkpoints/policy/my_policy')
+print('Checkpoint loaded successfully')
+print(f'Params shape: {params.shape if hasattr(params, \"shape\") else \"N/A\"}')
+"
+
+# Run a script that loads checkpoints
+./bin/python_exec load_checkpoint.py
+
+# Test checkpoint operations locally
+./bin/python_exec -m pytest tests/test_checkpoints.py
+```
+
+#### Docker Environment
+
+In Docker containers, use `uv run python` for checkpoint operations:
+
+```bash
+# Verify checkpoint integrity in Docker
+docker run --gpus all -it -e UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+  -v $(pwd)/checkpoints:/app/checkpoints \
+  lotf:latest uv run python -c "
+from orbax.checkpoint import PyTreeCheckpointer
+import jax.numpy as jnp
+
+ckptr = PyTreeCheckpointer()
+params = ckptr.restore('checkpoints/policy/my_policy')
+print('Checkpoint loaded successfully')
+print(f'Params shape: {params.shape if hasattr(params, \"shape\") else \"N/A\"}')
+"
+
+# Run a script that loads checkpoints in Docker
+docker run --gpus all -it -e UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+  -v $(pwd)/checkpoints:/app/checkpoints \
+  lotf:latest uv run python load_checkpoint.py
+
+# Test checkpoint operations in Docker
+docker run --gpus all -it -e UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+  -v $(pwd)/checkpoints:/app/checkpoints \
+  lotf:latest uv run python -m pytest tests/test_checkpoints.py
+```
 
 ### Checkpoint Directory Structure
 
@@ -255,7 +358,9 @@ save_residual_checkpoint("checkpoints/residual_dynamics/my_ensemble", residual_p
 
 ### Checkpoint Verification
 
-Verify checkpoint integrity:
+#### Python Function
+
+Verify checkpoint integrity using Python:
 
 ```python
 from orbax.checkpoint import PyTreeCheckpointer
@@ -280,15 +385,48 @@ def verify_checkpoint(checkpoint_path: str) -> bool:
         return False
 ```
 
+#### Verification in Different Contexts
+
+**Local Development**:
+```bash
+# Save verification function to verify.py, then run:
+./bin/python_exec verify.py
+
+# Or verify inline:
+./bin/python_exec -c "
+from orbax.checkpoint import PyTreeCheckpointer
+ckptr = PyTreeCheckpointer()
+params = ckptr.restore('checkpoints/policy/my_policy')
+print('Checkpoint valid!')
+"
+```
+
+**Docker Environment**:
+```bash
+# Verify checkpoint in Docker container
+docker run --gpus all -it -e UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+  -v $(pwd)/checkpoints:/app/checkpoints \
+  lotf:latest uv run python -c "
+from orbax.checkpoint import PyTreeCheckpointer
+ckptr = PyTreeCheckpointer()
+params = ckptr.restore('checkpoints/policy/my_policy')
+print('Checkpoint valid!')
+"
+```
+
 ### Checkpoint Backup
 
+The backup commands are standard shell commands that work identically in both local and Docker contexts:
+
 ```bash
-# Backup checkpoints directory
+# Backup checkpoints directory (works locally or in container)
 tar -czf checkpoints_backup_$(date +%Y%m%d).tar.gz checkpoints/
 
-# Restore from backup
+# Restore from backup (works locally or in container)
 tar -xzf checkpoints_backup_20250101.tar.gz
 ```
+
+**Note**: These commands don't involve Python execution, so they work the same way in both local development and Docker environments.
 
 ## ROS2 Integration
 
@@ -348,9 +486,9 @@ ros2 pkg list | grep your_package
 
 ### ROS2 Integration with LOTF
 
-#### Sourcing Requirements
+#### Sourcing Requirements (Local Development)
 
-For scripts that interact with ROS2 sensors or messages:
+For scripts that interact with ROS2 sensors or messages in local development:
 
 ```bash
 # 1. Source ROS2 environment
@@ -359,9 +497,11 @@ source /opt/ros/humble/setup.bash
 # 2. Source workspace (if using custom ROS2 packages)
 source /path/to/workspace/install/setup.bash
 
-# 3. Run LOTF with ROS2 integration
-uv run lotf track --config configs/traj_tracking.yaml
+# 3. Run LOTF with ROS2 integration (local development)
+./bin/python_exec -m lotf track --config configs/traj_tracking.yaml
 ```
+
+**Note**: For Docker with ROS2, see the "Docker with ROS2" section below.
 
 #### Python Scripts with ROS2
 
@@ -406,7 +546,7 @@ Run Docker container with ROS2:
 docker run --gpus all -it -e UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple lotf:latest bash -c "source /opt/ros/humble/setup.bash && uv run python -m lotf --help"
 ```
 
-### ROS2-Specific Builds
+### ROS2-Specific Builds (Local Development)
 
 Keep ROS2-specific builds isolated in dedicated workspaces. The main LOTF repository expects only the Python package to be editable.
 
@@ -427,9 +567,9 @@ colcon build --symlink-install
 # Source workspace
 source install/setup.bash
 
-# Use LOTF with ROS2 integration
+# Use LOTF with ROS2 integration (local development)
 cd /path/to/lotf
-uv run lotf track --config configs/traj_tracking.yaml
+./bin/python_exec -m lotf track --config configs/traj_tracking.yaml
 ```
 
 ## Troubleshooting
@@ -476,9 +616,17 @@ print(os.listdir(checkpoint_path))
 
 #### Orbax Version Mismatch
 
+**Local Development**:
 ```bash
-# Reinstall with correct Orbax version
-uv pip install orbax-checkpoint==0.6.4 --force-reinstall
+# Reinstall with correct Orbax version using python_exec
+./bin/python_exec -m pip install orbax-checkpoint==0.6.4 --force-reinstall
+```
+
+**Docker Environment**:
+```bash
+# Reinstall with correct Orbax version in Docker
+docker run --gpus all -it -e UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+  lotf:latest uv pip install orbax-checkpoint==0.6.4 --force-reinstall
 ```
 
 ### ROS2 Issues
@@ -514,3 +662,19 @@ rosdep install --from-paths src --ignore-src -y
 - [Training Guide](training.md) - Training workflows and best practices
 - [Docker Hub](https://hub.docker.com/) - Official Docker images
 - [ROS2 Humble Documentation](https://docs.ros.org/en/humble/) - ROS2 documentation
+
+## Quick Reference: Command Patterns
+
+| Context | Command Pattern | Example |
+|---------|----------------|---------|
+| **Local Development** | `./bin/python_exec` | `./bin/python_exec -m lotf --help` |
+| **Docker Container** | `uv run python` | `docker run lotf:latest uv run python -m lotf --help` |
+| **Local pip install** | `./bin/python_exec -m pip` | `./bin/python_exec -m pip install package` |
+| **Docker pip install** | `uv pip` | `docker run lotf:latest uv pip install package` |
+
+### Key Rules
+
+1. **Local Development**: Always use `./bin/python_exec` - it handles environment setup automatically
+2. **Docker Environment**: Always use `uv run python` - environment is pre-configured
+3. **Never use**: Direct `python` or `python3` commands (in either context)
+4. **Shell commands** (tar, cp, etc.): Work identically in both contexts
