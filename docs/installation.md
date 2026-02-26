@@ -47,10 +47,9 @@ LOTF provides a convenient `python_exec` wrapper script that simplifies Python s
 
 ### Features
 
-- **Automatic Environment Setup**: Sets `PYTHONPATH` to include the project root directory
-- **Virtual Environment Management**: Automatically creates and configures the virtual environment if it doesn't exist
+- **Automatic PYTHONPATH Configuration**: Sets `PYTHONPATH` to include the project root directory
 - **Project Root Context**: Always executes from the project root directory, ensuring consistent imports
-- **Seamless uv Integration**: Uses `uv run python` internally, providing all its benefits with a simpler interface
+- **Seamless uv Integration**: Uses `uv run python` internally for dependency management
 
 ### Usage
 
@@ -74,11 +73,9 @@ The `python_exec` script is located at `./bin/python_exec` and can be used as a 
 
 | Aspect | `uv run python` | `./bin/python_exec` |
 |--------|-----------------|---------------------|
-| Environment Setup | Manual | Automatic |
 | PYTHONPATH Configuration | Manual | Automatic |
 | Directory Context | Current directory | Always project root |
-| Virtual Environment Creation | Manual (`uv sync`) | Automatic if missing |
-| Recommended For | Single-use commands | Daily development and scripts |
+| Recommended For | Docker containers, one-off scripts | Daily development and training workflows |
 
 ## Installation
 

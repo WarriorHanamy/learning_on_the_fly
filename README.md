@@ -44,10 +44,9 @@ The project includes a `bin/python_exec` wrapper script that automatically handl
 
 **Features:**
 - Automatically sets `PYTHONPATH` to project root
-- Checks and creates `.venv` if needed (runs `uv sync --extra cuda12`)
-- Executes using `uv run python`
-- Cleans up environment variables on exit
-- Simplifies script execution without manual environment management
+- Executes using `uv run python` for dependency management
+- Always runs from project root directory
+- Simplifies script execution without manual environment setup
 
 **Examples:**
 ```bash

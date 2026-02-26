@@ -49,8 +49,8 @@ export XLA_PYTHON_CLIENT_MEM_FRACTION=.8
 ### Using python_exec Wrapper
 
 All training commands in this guide use the `./bin/python_exec` wrapper. This wrapper:
-- Automatically creates and manages a `.venv` virtual environment on first use
-- Installs LOTF in editable mode if not already present
+- Automatically sets `PYTHONPATH` to project root
+- Executes using `uv run python` for dependency management
 - Ensures the correct Python environment is used for all commands
 
 You do not need to manually activate a conda or venv environment - `./bin/python_exec` handles this for you.

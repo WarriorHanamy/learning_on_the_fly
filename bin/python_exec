@@ -5,21 +5,8 @@ set -e
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-setup_envs() {
-    export PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH"
-    
-    if [ ! -d ".venv" ]; then
-        echo "Virtual environment not found. Setting up..."
-        uv sync --extra cuda12
-    fi
-}
+# Set PYTHONPATH to project root
+export PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH"
 
-cleanup_envs() {
-    unset PYTHONPATH
-}
-
-trap cleanup_envs EXIT
-
-setup_envs
-
+# Execute with uv-managed environment
 uv run python "$@"
