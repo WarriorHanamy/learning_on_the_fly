@@ -39,6 +39,15 @@ docker build --network=bridge -t rec-lotf .
 
 Never omit `--network=bridge` - this ensures consistent network behavior and respects proxy settings.
 
+### 3. Use Tsinghua Mirror for Python Packages
+In Dockerfile, ALWAYS set UV_INDEX_URL to use Tsinghua mirror for faster downloads:
+```dockerfile
+ARG UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ENV UV_INDEX_URL=$UV_INDEX_URL
+```
+
+This ensures uv uses the Tsinghua PyPI mirror for all package downloads, significantly speeding up builds in China.
+
 ## Docker Run Rules
 
 ### 1. Always Use Bridge Mode
