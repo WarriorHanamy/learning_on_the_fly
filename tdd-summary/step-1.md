@@ -3,7 +3,7 @@
 ## Functional Requirements
 
 ### FR-1: CLI Module Executable
-The script `lotf/scripts/train_traj_tracking.py` must be executable via `uv run python -m lotf.scripts.train_traj_tracking`.
+The script `lotf/scripts/train_traj_tracking.py` must be executable via `./bin/python_exec -m lotf.scripts.train_traj_tracking`.
 
 ### FR-2: CLI Argument Parsing
 The CLI must accept the following arguments:

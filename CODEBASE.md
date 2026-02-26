@@ -178,7 +178,7 @@ pytest
 #### 1. 训练残差动力学模型
 
 ```bash
-uv run lotf residual \
+./bin/python_exec -m lotf residual \
   --config configs/residual_dynamics.yaml \
   --dataset examples/residual_dynamics/example_dataset.csv \
   --output checkpoints/residual_dynamics/my_model
@@ -187,7 +187,7 @@ uv run lotf residual \
 #### 2. 训练状态悬停策略
 
 ```bash
-uv run lotf hover \
+./bin/python_exec -m lotf hover \
   --config configs/state_hovering.yaml \
   --output checkpoints/policy/my_hovering_policy
 ```
@@ -195,7 +195,7 @@ uv run lotf hover \
 #### 3. 训练轨迹跟踪策略
 
 ```bash
-uv run lotf track \
+./bin/python_exec -m lotf track \
   --config configs/traj_tracking.yaml \
   --checkpoint checkpoints/policy/my_tracking_policy
 ```
@@ -595,16 +595,16 @@ save_checkpoint("checkpoints/residual_dynamics/residual_params", train_states.pa
 
 #### 全局命令
 ```bash
-uv run lotf --help              # 显示所有命令
-uv run lotf --version           # 显示包版本
-uv run lotf --list-configs      # 列出可用的 YAML 配置
+./bin/python_exec -m lotf --help              # 显示所有命令
+./bin/python_exec -m lotf --version           # 显示包版本
+./bin/python_exec -m lotf --list-configs      # 列出可用的 YAML 配置
 ```
 
 #### 子命令
 
 **1. 残差动力学训练**
 ```bash
-uv run lotf residual \
+./bin/python_exec -m lotf residual \
   --config configs/residual_dynamics.yaml \
   --dataset path/to/dataset.csv \
   --output checkpoints/residual_dynamics/residual_params
@@ -612,14 +612,14 @@ uv run lotf residual \
 
 **2. 状态悬停训练**
 ```bash
-uv run lotf hover \
+./bin/python_exec -m lotf hover \
   --config configs/state_hovering.yaml \
   --output checkpoints/policy/state_hovering_params
 ```
 
 **3. 轨迹跟踪训练**
 ```bash
-uv run lotf track \
+./bin/python_exec -m lotf track \
   --config configs/traj_tracking.yaml \
   --checkpoint checkpoints/policy/traj_tracking_params \
   --trajectory-output outputs/trajectory.csv
@@ -898,18 +898,18 @@ conda activate lotf
 uv sync
 
 # 2. 训练残差动力学模型
-uv run lotf residual \
+./bin/python_exec -m lotf residual \
   --config configs/residual_dynamics.yaml \
   --dataset examples/residual_dynamics/example_dataset.csv \
   --output checkpoints/residual_dynamics/my_model
 
 # 3. 训练悬停策略
-uv run lotf hover \
+./bin/python_exec -m lotf hover \
   --config configs/state_hovering.yaml \
   --output checkpoints/policy/my_hovering_policy
 
 # 4. 训练轨迹跟踪
-uv run lotf track \
+./bin/python_exec -m lotf track \
   --config configs/traj_tracking.yaml \
   --checkpoint checkpoints/policy/my_tracking_policy
 ```

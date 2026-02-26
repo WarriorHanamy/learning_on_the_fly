@@ -55,7 +55,7 @@ The project includes a `bin/python_exec` wrapper script that automatically handl
 ./bin/python_exec examples/some_analysis.py
 ```
 
-**IMPORTANT:** Never use `python` or `python3` directly. Always use `uv run python` or `./bin/python_exec` for the environment.
+**IMPORTANT:** Never use `python` or `python3` directly. Always use `./bin/python_exec` for the environment.
 
 ## CLI Commands
 

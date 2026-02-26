@@ -24,13 +24,13 @@ uv sync --extra cuda12
 
 ```bash
 # Show available commands
-uv run lotf --help
+./bin/python_exec -m lotf --help
 
 # List available configuration files
-uv run lotf --list-configs
+./bin/python_exec -m lotf --list-configs
 
 # Show package version
-uv run lotf --version
+./bin/python_exec -m lotf --version
 ```
 
 ## Training Commands
@@ -41,12 +41,12 @@ Train an ensemble of residual dynamics neural networks to model unmodeled dynami
 
 **Basic Usage:**
 ```bash
-uv run lotf residual --dataset examples/residual_dynamics/example_dataset.csv
+./bin/python_exec -m lotf residual --dataset examples/residual_dynamics/example_dataset.csv
 ```
 
 **With Custom Config:**
 ```bash
-uv run lotf residual \
+./bin/python_exec -m lotf residual \
   --config configs/residual_dynamics.yaml \
   --dataset path/to/your_dataset.csv \
   --output checkpoints/residual_dynamics/my_model
@@ -97,12 +97,12 @@ Train a neural network policy for quadrotor hovering using Backpropagation Throu
 
 **Basic Usage:**
 ```bash
-uv run lotf hover --config configs/state_hovering.yaml
+./bin/python_exec -m lotf hover --config configs/state_hovering.yaml
 ```
 
 **With Custom Output:**
 ```bash
-uv run lotf hover \
+./bin/python_exec -m lotf hover \
   --config configs/state_hovering.yaml \
   --output checkpoints/policy/my_hovering_policy
 ```
@@ -127,12 +127,12 @@ Train a neural network policy for following a reference trajectory.
 
 **Basic Usage:**
 ```bash
-uv run lotf track --config configs/traj_tracking.yaml
+./bin/python_exec -m lotf track --config configs/traj_tracking.yaml
 ```
 
 **With Trajectory Export:**
 ```bash
-uv run lotf track \
+./bin/python_exec -m lotf track \
   --config configs/traj_tracking.yaml \
   --checkpoint checkpoints/policy/my_tracking_policy \
   --trajectory-output outputs/trajectory.csv
@@ -212,7 +212,7 @@ Create your own configuration file by copying and modifying an existing one:
 ```bash
 cp configs/residual_dynamics.yaml configs/my_custom_config.yaml
 # Edit my_custom_config.yaml with your parameters
-uv run lotf residual --config configs/my_custom_config.yaml --dataset data.csv
+./bin/python_exec -m lotf residual --config configs/my_custom_config.yaml --dataset data.csv
 ```
 
 ### Minimal Smoke Testing
@@ -228,7 +228,7 @@ max_epochs: 2
 ```
 
 ```bash
-uv run lotf hover --config minimal_test.yaml --output /tmp/test_checkpoint
+./bin/python_exec -m lotf hover --config minimal_test.yaml --output /tmp/test_checkpoint
 ```
 
 ## Additional Resources

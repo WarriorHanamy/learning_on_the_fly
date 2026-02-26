@@ -3,7 +3,7 @@
 ## Summary
 
 All functional requirements addressed:
-- FR-1: CLI Module Executable - Script runs via `uv run python -m lotf.scripts.train_traj_tracking`
+- FR-1: CLI Module Executable - Script runs via `./bin/python_exec -m lotf.scripts.train_traj_tracking`
 - FR-2: CLI Argument Parsing - `--config`, `--checkpoint`, `--trajectory-output` arguments
 - FR-3: Environment Creation - `create_env()` returns wrapped `TrajTrackingStateEnv`
 - FR-4: Reference Trajectory Loading - Uses `ref_traj_name` from config
