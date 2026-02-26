@@ -89,6 +89,10 @@ lotf/
 
 ## Documentation
 
+- [Installation Guide](docs/installation.md) - Setup and environment configuration
+- [Configuration Guide](docs/configuration.md) - Complete parameter reference
+- [Training Guide](docs/training.md) - Training workflows and examples
+- [Deployment Guide](docs/deployment.md) - Docker and ROS2 integration
 - [CODEBASE.md](CODEBASE.md) - Detailed codebase documentation
 - [USAGE.md](USAGE.md) - Comprehensive CLI usage guide
 - [examples/](examples/) - Jupyter notebooks with step-by-step tutorials
