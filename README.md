@@ -34,43 +34,68 @@ uv sync
 uv sync --extra cuda12
 ```
 
+## Python Execution Wrapper
+
+The project includes a `bin/python_exec` wrapper script that automatically handles environment setup and cleanup:
+
+```bash
+./bin/python_exec <script>
+```
+
+**Features:**
+- Automatically sets `PYTHONPATH` to project root
+- Checks and creates `.venv` if needed (runs `uv sync --extra cuda12`)
+- Executes using `uv run python`
+- Cleans up environment variables on exit
+- Simplifies script execution without manual environment management
+
+**Examples:**
+```bash
+./bin/python_exec -c "import lotf; print('Success')"
+./bin/python_exec examples/some_analysis.py
+```
+
+**IMPORTANT:** Never use `python` or `python3` directly. Always use `uv run python` or `./bin/python_exec` for the environment.
+
 ## CLI Commands
 
 ### Global Commands
 ```bash
-uv run lotf --help                 # Show all commands
-uv run lotf --version              # Show package version
-uv run lotf --list-configs         # List available configuration files
+./bin/python_exec -m lotf --help           # Show all commands
+./bin/python_exec -m lotf --version        # Show package version
+./bin/python_exec -m lotf --list-configs   # List available configuration files
 ```
 
 ### Residual Dynamics Training
 ```bash
-uv run lotf residual --dataset data.csv
-uv run lotf residual --config configs/residual_dynamics.yaml --dataset data.csv
-uv run lotf residual --dataset data.csv --output checkpoints/my_model
+./bin/python_exec -m lotf residual --dataset data.csv
+./bin/python_exec -m lotf residual --config configs/residual_dynamics.yaml --dataset data.csv
+./bin/python_exec -m lotf residual --dataset data.csv --output checkpoints/my_model
 ```
 
 ### State-Based Hovering Training
 ```bash
-uv run lotf hover
-uv run lotf hover --config configs/state_hovering.yaml
-uv run lotf hover --output checkpoints/my_hovering_policy
+./bin/python_exec -m lotf hover
+./bin/python_exec -m lotf hover --config configs/state_hovering.yaml
+./bin/python_exec -m lotf hover --output checkpoints/my_hovering_policy
 ```
 
 ### Trajectory Tracking Training
 ```bash
-uv run lotf track
-uv run lotf track --config configs/traj_tracking.yaml
-uv run lotf track --checkpoint checkpoints/my_tracking_policy
-uv run lotf track --trajectory-output outputs/trajectory.csv
+./bin/python_exec -m lotf track
+./bin/python_exec -m lotf track --config configs/traj_tracking.yaml
+./bin/python_exec -m lotf track --checkpoint checkpoints/my_tracking_policy
+./bin/python_exec -m lotf track --trajectory-output outputs/trajectory.csv
 ```
 
 ### Subcommand Help
 ```bash
-uv run lotf hover --help
-uv run lotf track --help
-uv run lotf residual --help
+./bin/python_exec -m lotf hover --help
+./bin/python_exec -m lotf track --help
+./bin/python_exec -m lotf residual --help
 ```
+
+**Alternative:** You can also use `uv run lotf` directly instead of `./bin/python_exec -m lotf` for the same commands.
 
 ## Project Structure
 
