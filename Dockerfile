@@ -47,25 +47,16 @@ RUN --mount=type=cache,target=/root/.cache/uv uv venv .venv && \
     pyyaml \
     matplotlib \
     seaborn \
-    tqdm
-
-# Step 2: Install JAX and Flax core (without CUDA)
-RUN --mount=type=cache,target=/root/.cache/uv uv pip install --index-url $UV_INDEX_URL \
+    tqdm \
     jax==0.6.2 \
     jaxlib==0.6.2 \
     flax==0.8.5 \
     optax==0.2.4 \
     orbax-checkpoint==0.6.4 \
-    chex==0.1.90
-
-# Step 3: Install CUDA extras (heavy packages, separate layer)
-RUN --mount=type=cache,target=/root/.cache/uv uv pip install --index-url $UV_INDEX_URL \
+    chex==0.1.90 \
     jax-cuda12-pjrt==0.6.2 \
     jax-cuda12-plugin==0.6.2 \
-    "jax[cuda12]>=0.6.2"
-
-# Step 4: Install remaining project dependencies
-RUN --mount=type=cache,target=/root/.cache/uv uv pip install --index-url $UV_INDEX_URL \
+    "jax[cuda12]>=0.6.2" \
     jax-dataclasses==1.6.3 \
     casadi==3.7.1 \
     dm-tree==0.1.8 \
