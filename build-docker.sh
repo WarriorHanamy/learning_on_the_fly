@@ -15,7 +15,7 @@ readonly SCRIPT_AUTHOR="LOTF Project"
 readonly SCRIPT_DESCRIPTION="Build Docker image with BuildKit and host cache bind mount"
 
 readonly SCRIPT_NAME="${BASH_SOURCE[0]##*/}"
-SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 
 # ==============================================================================
@@ -98,15 +98,15 @@ fct_execute_this() {
         log_warn "Build will continue, but caching may not be optimal"
     fi
 
-    # Build with BuildKit and cache mount
+    # Build with BuildKit
     # Why: DOCKER_BUILDKIT=1 enables BuildKit for better caching and performance
-    # Why: --mount type=bind mounts host cache to avoid re-downloading packages
+    # Why: RUN --mount=type=cache in Dockerfile manages build cache automatically
+    cd "${SCRIPT_DIR}" && \
     DOCKER_BUILDKIT=1 docker build \
         --build-arg BUILDKIT_INLINE_CACHE=1 \
         --tag "${IMAGE_NAME}:${IMAGE_TAG}" \
         --file "${SCRIPT_DIR}/Dockerfile" \
-        --mount "type=bind,source=${HOST_CACHE_DIR},target=${CONTAINER_CACHE_DIR}" \
-        "${SCRIPT_DIR}"
+        .
 
     log_info "Build completed successfully: ${IMAGE_NAME}:${IMAGE_TAG}"
 }

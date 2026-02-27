@@ -36,7 +36,7 @@ WORKDIR /app
 # Stage 1: Core Python dependencies (cached separately)
 FROM base AS core-deps
 
-COPY pyproject.toml setup.py ./
+COPY pyproject.toml ./
 
 # Step 1: Create virtual environment and install core dependencies without CUDA
 RUN --mount=type=cache,target=/root/.cache/uv uv venv .venv && \
