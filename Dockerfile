@@ -29,6 +29,7 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
 # Install uv in a separate layer for caching
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:$PATH"
+ENV UV_LINK_MODE=copy
 
 WORKDIR /app
 
