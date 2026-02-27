@@ -39,7 +39,7 @@ FROM base AS core-deps
 COPY pyproject.toml setup.py ./
 
 # Step 1: Create virtual environment and install core dependencies without CUDA
-RUN uv venv .venv && \
+RUN --mount=type=cache,target=/root/.cache/uv uv venv .venv && \
     uv pip install --index-url $UV_INDEX_URL \
     numpy==1.26.4 \
     scipy==1.13.1 \
@@ -50,7 +50,7 @@ RUN uv venv .venv && \
     tqdm
 
 # Step 2: Install JAX and Flax core (without CUDA)
-RUN uv pip install --index-url $UV_INDEX_URL \
+RUN --mount=type=cache,target=/root/.cache/uv uv pip install --index-url $UV_INDEX_URL \
     jax==0.6.2 \
     jaxlib==0.6.2 \
     flax==0.8.5 \
@@ -59,13 +59,13 @@ RUN uv pip install --index-url $UV_INDEX_URL \
     chex==0.1.90
 
 # Step 3: Install CUDA extras (heavy packages, separate layer)
-RUN uv pip install --index-url $UV_INDEX_URL \
+RUN --mount=type=cache,target=/root/.cache/uv uv pip install --index-url $UV_INDEX_URL \
     jax-cuda12-pjrt==0.6.2 \
     jax-cuda12-plugin==0.6.2 \
     "jax[cuda12]>=0.6.2"
 
 # Step 4: Install remaining project dependencies
-RUN uv pip install --index-url $UV_INDEX_URL \
+RUN --mount=type=cache,target=/root/.cache/uv uv pip install --index-url $UV_INDEX_URL \
     jax-dataclasses==1.6.3 \
     casadi==3.7.1 \
     dm-tree==0.1.8 \
@@ -82,7 +82,7 @@ COPY checkpoints/ ./checkpoints/
 COPY README.md ./
 
 # Install project in editable mode
-RUN uv pip install -e .
+RUN --mount=type=cache,target=/root/.cache/uv uv pip install -e .
 
 # Verify installation
 RUN uv run python --version && \
