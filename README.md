@@ -108,33 +108,3 @@ lotf/
 ├── simulation/     # High-fidelity quadrotor dynamics
 └── utils/          # Utility functions
 ```
-
-## Documentation
-
-- [Installation Guide](docs/installation.md) - Setup and environment configuration
-- [Configuration Guide](docs/configuration.md) - Complete parameter reference
-- [Training Guide](docs/training.md) - Training workflows and examples
-- [Deployment Guide](docs/deployment.md) - Docker and ROS2 integration
- - [Design Decisions](https://github.com/WarriorHanamy/learning_on_the_fly/wiki/Design-Decisions) - Key architectural decisions and rationale
-- [CODEBASE.md](CODEBASE.md) - Detailed codebase documentation
-- [USAGE.md](USAGE.md) - Comprehensive CLI usage guide
-- [examples/](examples/) - Jupyter notebooks with step-by-step tutorials
-
-## Citation
-
-```bibtex
-@inproceedings{pan2026learning,
-  title={Learning on the Fly: Rapid Policy Adaptation via Differentiable Simulation},
-  author={Pan, Jiahe and Xing, Jiaxu and Reiter, Rudolf and Zhai, Yifan and Aljalbout, Elie and Scaramuzza, Davide},
-  booktitle = {IEEE Robotics and Automation Letters},
-  year={2026}
-}
-```
-
-## Acknowledgements
-
-We thank the authors of [flightning](https://github.com/uzh-rpg/rpg_flightning) for open-sourcing their code, which provided the foundation of this codebase.
-
-## Contact
-
-For questions, use the [GitHub issue tracker](https://github.com/uzh-rpg/learning_on_the_fly/issues) or contact [Michael Pan](mailto:michael.pan31415@gmail.com).
