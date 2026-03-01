@@ -1,0 +1,20 @@
+# Minimal residual dynamics config for testing dockrun
+# Only 2 epochs for quick verification
+
+# Ensemble model parameters
+num_models: 2
+input_dim: 19
+output_dim: 3
+
+# Training hyperparameters
+learning_rate: 0.01
+lambda_reg: 0.001
+num_epochs: 2
+batch_size: 256
+eval_every: 1
+
+# Weight initialization
+weight_init_scale: 1.0
+
+# Dataset settings
+dataset_name: example_dataset.csv
