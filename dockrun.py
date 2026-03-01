@@ -103,11 +103,20 @@ def main() -> int:
         action="store_true",
         help="Run in non-interactive mode (default behavior)",
     )
-    parser.add_argument("--version", "-v", action="version", version=f"dockrun {__version__}")
+    parser.add_argument(
+        "--dockrun-version",
+        action="store_true",
+        help="Show dockrun version",
+    )
 
     # Use parse_known_args to stop parsing after our flags
     # This allows nested commands with their own flags to work
     args, remaining = parser.parse_known_args()
+
+    # Handle --dockrun-version
+    if args.dockrun_version:
+        print(f"dockrun {__version__}")
+        return 0
 
     # If no command is provided, show help
     if not remaining:
