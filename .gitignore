@@ -13,3 +13,4 @@ checkpoints/
 # Backup folders
 *_backup/
 root_tasks.json
+completed-tdd-archives/
