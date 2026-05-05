@@ -125,7 +125,7 @@ learning_on_the_fly/
 | 组件     | 规格                         |
 | -------- | ---------------------------- |
 | 操作系统 | Ubuntu 22.04 LTS             |
-| Python   | 3.10（推荐）                 |
+| Python   | 3.12（推荐）                 |
 | CUDA     | 12.x                         |
 | GPU      | NVIDIA GPU with CUDA support |
 | 内存     | 建议 16GB+                   |
@@ -969,7 +969,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.12'
       - name: Install dependencies
         run: |
           pip install uv

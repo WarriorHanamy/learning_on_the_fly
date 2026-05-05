@@ -11,7 +11,7 @@ license = {text = "MIT"}
 authors = [
     {name = "Michael Pan", email = "michael.pan31415@gmail.com"}
 ]
-requires-python = ">=3.10,<3.11"
+requires-python = ">=3.12"
 dependencies = [
     "jax>=0.4.30",
     "jaxlib>=0.4.30",
@@ -27,11 +27,16 @@ dependencies = [
     "seaborn",
     "pyyaml",
     "tqdm",
+    "minco-python",
+    "viser",
+    "nodeenv>=1.10.0",
+    "plotly>=6.7.0",
 ]
 
 [project.scripts]
 train = "lotf.__main__:main"
 lotf = "lotf.__main__:main"
+play = "lotf.__main__:main_play"
 
 [project.optional-dependencies]
 cuda12 = [
@@ -48,6 +53,10 @@ dev = [
 where = ["."]
 include = ["lotf*"]
 
+[tool.uv.sources]
+minco-python = { path = "deps/minco-python" }
+viser = { path = "deps/viser" }
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
@@ -58,7 +67,7 @@ dev = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]

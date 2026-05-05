@@ -1,0 +1,6 @@
+[submodule "deps/minco-python"]
+	path = deps/minco-python
+	url = https://github.com/WarriorHanamy/minco-python.git
+[submodule "deps/viser"]
+	path = deps/viser
+	url = https://github.com/viser-project/viser.git

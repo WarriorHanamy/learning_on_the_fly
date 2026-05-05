@@ -226,10 +226,10 @@ tar -xzf checkpoints_backup_20250101.tar.gz
 
 ### ROS2 Humble Compatibility
 
-LOTF requires **Python 3.10** which is compatible with ROS2 Humble Hawksbill. The project's `pyproject.toml` enforces this constraint:
+LOTF requires **Python 3.12** which is compatible with ROS2 Humble Hawksbill. The project's `pyproject.toml` enforces this constraint:
 
 ```toml
-requires-python = ">=3.10,<3.11"
+requires-python = ">=3.12"
 ```
 
 ### ROS2 Workspace Setup

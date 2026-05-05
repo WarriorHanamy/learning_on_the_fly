@@ -7,7 +7,7 @@ This guide provides step-by-step instructions for installing Learning on the Fly
 | Component | Minimum Version | Recommended Version | Notes |
 |-----------|----------------|-------------------|-------|
 | Operating System | Ubuntu 20.04 LTS | Ubuntu 22.04 LTS | Linux only (Windows/Mac not tested) |
-| Python | 3.10 | 3.10 | Managed by uv, other versions not supported |
+| Python | 3.12 | 3.12 | Managed by uv, other versions not supported |
 | CUDA | 11.8+ | 12.4 | Required for GPU acceleration |
 | GPU | NVIDIA GPU with compute capability 7.0+ | RTX 3090, A100, or similar | CUDA-compatible NVIDIA GPU |
 | RAM | 8 GB | 16 GB+ | More memory for larger training runs |
@@ -119,7 +119,7 @@ uv run python --version
 
 Expected output:
 ```
-Python 3.10.x
+Python 3.12.x
 ```
 
 ### 2. JAX Devices Check

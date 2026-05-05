@@ -306,5 +306,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
 
+def main_play(argv: Sequence[str] | None = None) -> int:
+    """Entry point for the `play` command — 3D policy visualization.
+
+    Args:
+        argv: Command-line arguments (defaults to sys.argv[1:]).
+
+    Returns:
+        Exit code (0 for success, non-zero for errors).
+    """
+    from lotf.scripts.visualize_policy import main as play_policy
+
+    play_argv = ["play"] + (list(argv) if argv else sys.argv[1:])
+    return _run_with_argv(play_policy, play_argv)
+
+
 if __name__ == "__main__":
     sys.exit(main())

@@ -16,7 +16,7 @@ Learning on the Fly (LOTF) is a JAX-based differentiable simulation library for 
 | Component | Version |
 |-----------|---------|
 | Ubuntu    | 22.04 LTS |
-| Python    | 3.10 (uv managed) |
+| Python    | 3.12 (uv managed) |
 | CUDA      | 12.x |
 | GPU       | NVIDIA GPU with CUDA support |
 
