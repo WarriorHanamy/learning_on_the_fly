@@ -23,75 +23,42 @@ Learning on the Fly (LOTF) is a JAX-based differentiable simulation library for 
 ## Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/WarriorHanamy/learning_on_the_fly.git
 cd learning_on_the_fly
 
-# Install dependencies (CPU only)
+# CPU only
 uv sync
 
-# Install with GPU support (CUDA 12)
+# GPU support (CUDA 12)
 uv sync --extra cuda12
 ```
 
-## Python Execution Wrapper
-
-The project includes a `bin/python_exec` wrapper script that automatically handles environment setup and cleanup:
-
-```bash
-./bin/python_exec <script>
-```
-
-**Features:**
-- Automatically sets `PYTHONPATH` to project root
-- Executes using `uv run python` for dependency management
-- Always runs from project root directory
-- Simplifies script execution without manual environment setup
-
-**Examples:**
-```bash
-./bin/python_exec -c "import lotf; print('Success')"
-./bin/python_exec examples/some_analysis.py
-```
-
-**IMPORTANT:** Never use `python` or `python3` directly. Always use `./bin/python_exec` for the environment.
-
 ## CLI Commands
 
-### Global Commands
-```bash
-./bin/python_exec -m lotf --help           # Show all commands
-./bin/python_exec -m lotf --version        # Show package version
-./bin/python_exec -m lotf --list-configs   # List available configuration files
-```
+All commands use `uv run train`:
 
-### Residual Dynamics Training
 ```bash
-./bin/python_exec -m lotf residual --dataset data.csv
-./bin/python_exec -m lotf residual --config configs/residual_dynamics.yaml --dataset data.csv
-./bin/python_exec -m lotf residual --dataset data.csv --output checkpoints/my_model
-```
+# Global
+uv run train --help
+uv run train --version
+uv run train --list-configs
 
-### State-Based Hovering Training
-```bash
-./bin/python_exec -m lotf hover
-./bin/python_exec -m lotf hover --config configs/state_hovering.yaml
-./bin/python_exec -m lotf hover --output checkpoints/my_hovering_policy
-```
+# Residual dynamics training
+uv run train residual --dataset data.csv
+uv run train residual --config configs/residual_dynamics.yaml --dataset data.csv
 
-### Trajectory Tracking Training
-```bash
-./bin/python_exec -m lotf track
-./bin/python_exec -m lotf track --config configs/traj_tracking.yaml
-./bin/python_exec -m lotf track --checkpoint checkpoints/my_tracking_policy
-./bin/python_exec -m lotf track --trajectory-output outputs/trajectory.csv
-```
+# State-based hovering
+uv run train hover
+uv run train hover --config configs/state_hovering.yaml
 
-### Subcommand Help
-```bash
-./bin/python_exec -m lotf hover --help
-./bin/python_exec -m lotf track --help
-./bin/python_exec -m lotf residual --help
+# Trajectory tracking
+uv run train track
+uv run train track --config configs/traj_tracking.yaml
+
+# Subcommand help
+uv run train hover --help
+uv run train track --help
+uv run train residual --help
 ```
 
 ## Project Structure
@@ -106,5 +73,7 @@ lotf/
 ├── scripts/        # Training scripts (CLI entry points)
 ├── sensors/        # Double sphere camera model
 ├── simulation/     # High-fidelity quadrotor dynamics
-└── utils/          # Utility functions
+├── utils/          # Utility functions
+├── __init__.py     # Package init (LOTF_ROOT, resolve_path)
+└── __main__.py     # CLI entry point (uv run train)
 ```
