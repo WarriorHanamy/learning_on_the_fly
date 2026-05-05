@@ -75,7 +75,7 @@ The `python_exec` script is located at `./bin/python_exec` and can be used as a 
 |--------|-----------------|---------------------|
 | PYTHONPATH Configuration | Manual | Automatic |
 | Directory Context | Current directory | Always project root |
-| Recommended For | Docker containers, one-off scripts | Daily development and training workflows |
+| Recommended For | One-off scripts, debugging | Daily development and training workflows |
 
 ## Installation
 
@@ -430,21 +430,6 @@ uv sync --extra cuda12
     uv pip install --use-pep517 -e .
     ```
 
-### Docker Installation Issues
-
-If you encounter issues with Docker, use the provided Dockerfile:
-
-```bash
-# Build Docker image with CUDA support
-docker build -t lotf:latest .
-
-# Run container with GPU access
-docker run --gpus all -it lotf:latest /bin/bash
-
-# Verify installation in container
-uv run python -c "import jax; print(jax.devices())"
-```
-
 ## Additional Resources
 
 - [Project README](../README.md) - Overview and quick start
@@ -461,6 +446,6 @@ If you encounter issues not covered in this guide:
    - System information (OS, Python version, CUDA version)
    - Error messages
    - Steps to reproduce
-   - Installation method (CPU/GPU/Docker)
+   - Installation method (CPU/GPU)
 
 3. Contact: [Michael Pan](mailto:michael.pan31415@gmail.com)
