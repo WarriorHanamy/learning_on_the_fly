@@ -1,7 +1,8 @@
 from pathlib import Path
 
-LOTF_PATH = Path(__file__).resolve().parent
-LOTF_ROOT = LOTF_PATH.parent
+_LOTF_DIR = Path(__file__).resolve().parent
+LOTF_PATH = str(_LOTF_DIR)
+LOTF_ROOT = _LOTF_DIR.parent
 
 
 def resolve_path(path):
