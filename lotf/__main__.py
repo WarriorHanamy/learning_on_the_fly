@@ -5,12 +5,12 @@ This module provides a single CLI interface that dispatches to specific
 training tasks based on command arguments.
 
 Usage:
-    uv run lotf --help
-    uv run lotf --version
-    uv run lotf --list-configs
-    uv run lotf hover --config configs/state_hovering.yaml
-    uv run lotf track --config configs/traj_tracking.yaml
-    uv run lotf residual --config configs/residual_dynamics.yaml --dataset data.csv
+    uv run train --help
+    uv run train --version
+    uv run train --list-configs
+    uv run train hover --config configs/state_hovering.yaml
+    uv run train track --config configs/traj_tracking.yaml
+    uv run train residual --config configs/residual_dynamics.yaml --dataset data.csv
 
 Subcommands:
     hover     Train state-based hovering policy
@@ -23,11 +23,9 @@ from __future__ import annotations
 import argparse
 import importlib.metadata
 import sys
-from pathlib import Path
 from typing import Sequence
 
-# Package root for config resolution
-LOTF_ROOT = Path(__file__).parent.parent
+from lotf import LOTF_ROOT
 
 
 def get_version() -> str:
@@ -77,30 +75,30 @@ def create_parser() -> argparse.ArgumentParser:
         Configured ArgumentParser instance.
     """
     parser = argparse.ArgumentParser(
-        prog="lotf",
+        prog="train",
         description="LOTF: Learning Agile Flight with Differentiable Simulation",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
     # Show version
-    uv run lotf --version
+    uv run train --version
 
     # List available configs
-    uv run lotf --list-configs
+    uv run train --list-configs
 
     # Train hovering policy
-    uv run lotf hover --config configs/state_hovering.yaml
+    uv run train hover --config configs/state_hovering.yaml
 
     # Train trajectory tracking
-    uv run lotf track --config configs/traj_tracking.yaml
+    uv run train track --config configs/traj_tracking.yaml
 
     # Train residual dynamics
-    uv run lotf residual --config configs/residual_dynamics.yaml --dataset data.csv
+    uv run train residual --config configs/residual_dynamics.yaml --dataset data.csv
 
 For subcommand help:
-    uv run lotf hover --help
-    uv run lotf track --help
-    uv run lotf residual --help
+    uv run train hover --help
+    uv run train track --help
+    uv run train residual --help
         """,
     )
 
@@ -133,8 +131,8 @@ For subcommand help:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    uv run lotf hover --config configs/state_hovering.yaml
-    uv run lotf hover --config configs/state_hovering.yaml --output checkpoints/my_policy
+    uv run train hover --config configs/state_hovering.yaml
+    uv run train hover --config configs/state_hovering.yaml --output checkpoints/my_policy
         """,
     )
     hover_parser.add_argument(
@@ -158,8 +156,8 @@ Examples:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    uv run lotf track --config configs/traj_tracking.yaml
-    uv run lotf track --config configs/traj_tracking.yaml --checkpoint checkpoints/my_policy
+    uv run train track --config configs/traj_tracking.yaml
+    uv run train track --config configs/traj_tracking.yaml --checkpoint checkpoints/my_policy
         """,
     )
     track_parser.add_argument(
@@ -189,8 +187,8 @@ Examples:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    uv run lotf residual --dataset examples/residual_dynamics/example_dataset.csv
-    uv run lotf residual --config configs/residual_dynamics.yaml --dataset data.csv
+    uv run train residual --dataset examples/residual_dynamics/example_dataset.csv
+    uv run train residual --config configs/residual_dynamics.yaml --dataset data.csv
         """,
     )
     residual_parser.add_argument(

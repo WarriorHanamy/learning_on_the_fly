@@ -14,3 +14,4 @@ checkpoints/
 *_backup/
 root_tasks.json
 completed-tdd-archives/
+_tmp/

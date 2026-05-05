@@ -4,25 +4,23 @@ This guide covers checkpoint management and ROS2 integration for the Learning on
 
 ## Local Development
 
-Use the `./bin/python_exec` wrapper script for all local development:
+All commands use `uv run`, which automatically manages the virtual environment:
 
 ```bash
-./bin/python_exec --version
-./bin/python_exec -m lotf --help
-./bin/python_exec -m pytest tests/
-./bin/python_exec -c "import jax; print(jax.devices())"
+uv run python --version
+uv run train --help
+uv run pytest tests/
+uv run python -c "import jax; print(jax.devices())"
 ```
-
-**Important**: Always use `./bin/python_exec` for local development. Never use `python` or `python3` directly.
 
 ## Checkpoint Management
 
 LOTF uses Orbax's `PyTreeCheckpointer` for saving and loading model parameters.
 
-For local development, use `./bin/python_exec` to run checkpoint-related scripts:
+Run checkpoint-related scripts with `uv run python`:
 
 ```bash
-./bin/python_exec -c "
+uv run python -c "
 from orbax.checkpoint import PyTreeCheckpointer
 import jax.numpy as jnp
 
@@ -32,8 +30,8 @@ print('Checkpoint loaded successfully')
 print(f'Params shape: {params.shape if hasattr(params, \"shape\") else \"N/A\"}')
 "
 
-./bin/python_exec load_checkpoint.py
-./bin/python_exec -m pytest tests/test_checkpoints.py
+uv run python load_checkpoint.py
+uv run pytest tests/test_checkpoints.py
 ```
 
 ### Checkpoint Directory Structure
@@ -206,10 +204,10 @@ def verify_checkpoint(checkpoint_path: str) -> bool:
 **Local Development**:
 ```bash
 # Save verification function to verify.py, then run:
-./bin/python_exec verify.py
+uv run python verify.py
 
 # Or verify inline:
-./bin/python_exec -c "
+uv run python -c "
 from orbax.checkpoint import PyTreeCheckpointer
 ckptr = PyTreeCheckpointer()
 params = ckptr.restore('checkpoints/policy/my_policy')
@@ -294,7 +292,7 @@ source /opt/ros/humble/setup.bash
 source /path/to/workspace/install/setup.bash
 
 # 3. Run LOTF with ROS2 integration
-./bin/python_exec -m lotf track --config configs/traj_tracking.yaml
+uv run train track --config configs/traj_tracking.yaml
 ```
 
 #### Python Scripts with ROS2
@@ -342,7 +340,7 @@ source install/setup.bash
 
 # Use LOTF with ROS2 integration
 cd /path/to/lotf
-./bin/python_exec -m lotf track --config configs/traj_tracking.yaml
+uv run train track --config configs/traj_tracking.yaml
 ```
 
 ## Troubleshooting
@@ -371,7 +369,7 @@ print(os.listdir(checkpoint_path))
 #### Orbax Version Mismatch
 
 ```bash
-./bin/python_exec -m pip install orbax-checkpoint==0.6.4 --force-reinstall
+uv pip install orbax-checkpoint==0.6.4 --force-reinstall
 ```
 
 ### ROS2 Issues
@@ -411,10 +409,11 @@ rosdep install --from-paths src --ignore-src -y
 
 | Context | Command Pattern | Example |
 |---------|----------------|---------|
-| **Local Development** | `./bin/python_exec` | `./bin/python_exec -m lotf --help` |
-| **pip install** | `./bin/python_exec -m pip` | `./bin/python_exec -m pip install package` |
+| **uv run** | `uv run train --help` |
+| **uv run python** | `uv run python -c "..."` |
+| **uv pip** | `uv pip install package` |
 
 ### Key Rules
 
-1. Always use `./bin/python_exec` - it handles environment setup automatically
+1. Always use `uv run` — it handles environment setup automatically
 2. Never use direct `python` or `python3` commands

@@ -30,6 +30,7 @@ dependencies = [
 ]
 
 [project.scripts]
+train = "lotf.__main__:main"
 lotf = "lotf.__main__:main"
 
 [project.optional-dependencies]

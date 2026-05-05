@@ -41,41 +41,23 @@ Before installing LOTF, ensure you have the following:
    # https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
    ```
 
-## Python Execution Wrapper
+## Running Commands
 
-LOTF provides a convenient `python_exec` wrapper script that simplifies Python script execution within the project environment. This wrapper automatically handles environment setup and ensures consistent execution across different contexts.
-
-### Features
-
-- **Automatic PYTHONPATH Configuration**: Sets `PYTHONPATH` to include the project root directory
-- **Project Root Context**: Always executes from the project root directory, ensuring consistent imports
-- **Seamless uv Integration**: Uses `uv run python` internally for dependency management
-
-### Usage
-
-The `python_exec` script is located at `./bin/python_exec` and can be used as a drop-in replacement for `python` commands:
+All commands use `uv run`, which automatically manages the virtual environment:
 
 ```bash
 # Basic Python execution
-./bin/python_exec --version
+uv run python --version
 
-# Run Python scripts
-./bin/python_exec train.py
+# Run training via CLI
+uv run train hover --config configs/state_hovering.yaml
 
-# Execute inline Python code
-./bin/python_exec -c "import jax; print(jax.devices())"
+# Run tests
+uv run pytest
 
-# Install packages through the wrapper
-./bin/python_exec -m pip install package_name
+# Install packages
+uv pip install package_name
 ```
-
-### Comparison with Direct uv Commands
-
-| Aspect | `uv run python` | `./bin/python_exec` |
-|--------|-----------------|---------------------|
-| PYTHONPATH Configuration | Manual | Automatic |
-| Directory Context | Current directory | Always project root |
-| Recommended For | One-off scripts, debugging | Daily development and training workflows |
 
 ## Installation
 
@@ -91,9 +73,9 @@ cd learning_on_the_fly
 # Install dependencies (CPU only)
 uv sync
 
-# Verify installation using python_exec wrapper
-./bin/python_exec --version
-./bin/python_exec -c "import lotf; print('LOTF installed successfully')"
+# Verify installation
+uv run python --version
+uv run python -c "import lotf; print('LOTF installed successfully')"
 ```
 
 ### GPU Installation (CUDA 12)
@@ -108,8 +90,8 @@ cd learning_on_the_fly
 # Install dependencies with CUDA 12 support
 uv sync --extra cuda12
 
-# Verify GPU installation using python_exec wrapper
-./bin/python_exec -c "import jax; print(jax.devices())"
+# Verify GPU installation
+uv run python -c "import jax; print(jax.devices())"
 ```
 
 ### Development Installation
@@ -120,8 +102,8 @@ For development with testing tools:
 # Install with development dependencies
 uv sync --extra dev --extra cuda12
 
-# Run tests to verify installation using python_exec wrapper
-./bin/python_exec -m pytest
+# Run tests to verify installation
+uv run pytest
 ```
 
 ## Environment Verification
@@ -131,8 +113,8 @@ After installation, verify your environment with the following commands:
 ### 1. Python Version Check
 
 ```bash
-# Check Python version using python_exec wrapper
-./bin/python_exec --version
+# Check Python version
+uv run python --version
 ```
 
 Expected output:
@@ -145,8 +127,8 @@ Python 3.10.x
 Verify that JAX can detect your hardware:
 
 ```bash
-# Check available JAX devices using python_exec wrapper
-./bin/python_exec -c "import jax; print(f'JAX version: {jax.__version__}'); print(f'Devices: {jax.devices()}')"
+# Check available JAX devices
+uv run python -c "import jax; print(f'JAX version: {jax.__version__}'); print(f'Devices: {jax.devices()}')"
 ```
 
 For CPU-only installation:
@@ -169,8 +151,8 @@ Verify CUDA is properly configured (GPU only):
 # Check CUDA version
 nvcc --version
 
-# Check GPU availability with JAX using python_exec wrapper
-./bin/python_exec -c "import jax; print('GPU Available:', len(jax.devices('gpu')) > 0)"
+# Check GPU availability with JAX
+uv run python -c "import jax; print('GPU Available:', len(jax.devices('gpu')) > 0)"
 ```
 
 Expected output:
@@ -187,7 +169,7 @@ GPU Available: True
 Verify all required packages can be imported:
 
 ```bash
-./bin/python_exec << 'EOF'
+uv run python << 'EOF'
 import jax
 import jaxlib
 import flax
@@ -202,17 +184,17 @@ EOF
 
 ### 5. CLI Functionality Check
 
-Test the LOTF CLI using python_exec wrapper:
+Test the LOTF CLI:
 
 ```bash
 # Show help
-./bin/python_exec -m lotf --help
+uv run train --help
 
 # Show version
-./bin/python_exec -m lotf --version
+uv run train --version
 
 # List available configs
-./bin/python_exec -m lotf --list-configs
+uv run train --list-configs
 ```
 
 ## Troubleshooting
@@ -225,13 +207,13 @@ Test the LOTF CLI using python_exec wrapper:
 
 1. **Check JAX backend configuration**:
     ```bash
-    ./bin/python_exec -c "import os; os.environ['JAX_PLATFORMS']='cpu'; import jax; print(jax.devices())"
+    uv run python -c "import os; os.environ['JAX_PLATFORMS']='cpu'; import jax; print(jax.devices())"
     ```
 
 2. **Force GPU backend**:
     ```bash
     export JAX_PLATFORMS=cuda
-    ./bin/python_exec -c "import jax; print(jax.devices())"
+    uv run python -c "import jax; print(jax.devices())"
     ```
 
 3. **Reinstall with CUDA support**:
@@ -310,7 +292,7 @@ Test the LOTF CLI using python_exec wrapper:
     ```bash
     # Run training on CPU if GPU issues persist
     export JAX_PLATFORMS=cpu
-    ./bin/python_exec -m lotf hover
+    uv run train hover
     ```
 
 ### Import Errors
@@ -335,100 +317,6 @@ Test the LOTF CLI using python_exec wrapper:
     uv sync --extra cuda12
     ```
 
-### python_exec Wrapper Issues
-
-**Problem**: `bash: ./bin/python_exec: Permission denied`
-
-**Solution**: Make the script executable:
-```bash
-chmod +x ./bin/python_exec
-```
-
----
-
-**Problem**: `Virtual environment not found. Setting up...` appears every time
-
-**Solution**: This is normal behavior - python_exec automatically creates the virtual environment if it doesn't exist. To ensure it persists, run:
-```bash
-# Verify virtual environment exists
-ls -la .venv/
-
-# If missing, explicitly create it
-uv sync --extra cuda12
-```
-
----
-
-**Problem**: `ModuleNotFoundError` when using python_exec
-
-**Solutions**:
-
-1. **Check PYTHONPATH configuration**:
-    ```bash
-    # Manually set PYTHONPATH as a fallback
-    export PYTHONPATH="$(pwd):$PYTHONPATH"
-    ./bin/python_exec -c "import lotf; print('LOTF module found')"
-    ```
-
-2. **Verify virtual environment is synced**:
-    ```bash
-    # Re-sync dependencies
-    uv sync --reinstall
-    ```
-
-3. **Check script integrity**:
-    ```bash
-    # Verify python_exec script exists and is correct
-    cat ./bin/python_exec
-    ```
-
----
-
-**Problem**: `Error: Could not find a matching version` or similar dependency conflicts
-
-**Solutions**:
-
-1. **Clear lock file and resync**:
-    ```bash
-    rm -rf .venv uv.lock
-    uv sync --extra cuda12
-    ```
-
-2. **Use python_exec's automatic setup**:
-    ```bash
-    # Remove existing environment and let python_exec recreate it
-    rm -rf .venv
-    ./bin/python_exec --version
-    ```
-
-3. **Check uv version**:
-    ```bash
-    uv --version
-    uv self update
-    ```
-
----
-
-**Problem**: Python scripts cannot import LOTF modules
-
-**Solutions**:
-
-1. **Verify project root context**:
-    ```bash
-    # python_exec should always execute from project root
-    ./bin/python_exec -c "import os; print('Current directory:', os.getcwd())"
-    ```
-
-2. **Check LOTF installation**:
-    ```bash
-    # Verify LOTF is installed in the virtual environment
-    ./bin/python_exec -c "import sys; print(sys.path)"
-    ```
-
-3. **Reinstall LOTF in development mode**:
-    ```bash
-    uv pip install --use-pep517 -e .
-    ```
 
 ## Additional Resources
 

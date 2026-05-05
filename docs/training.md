@@ -46,14 +46,9 @@ export XLA_PYTHON_CLIENT_PREALLOCATE=true
 export XLA_PYTHON_CLIENT_MEM_FRACTION=.8
 ```
 
-### Using python_exec Wrapper
+### Running Commands
 
-All training commands in this guide use the `./bin/python_exec` wrapper. This wrapper:
-- Automatically sets `PYTHONPATH` to project root
-- Executes using `uv run python` for dependency management
-- Ensures the correct Python environment is used for all commands
-
-You do not need to manually activate a conda or venv environment - `./bin/python_exec` handles this for you.
+All training commands in this guide use `uv run`. `uv` automatically manages the virtual environment and dependencies — no manual activation required.
 
 ## Task 1: Residual Dynamics Training
 
@@ -90,7 +85,7 @@ The dataset must be a **22-column CSV file without headers**:
 Train with default configuration and example dataset:
 
 ```bash
-./bin/python_exec -m lotf.scripts.train_residual \
+uv run train residual \
     --dataset examples/residual_dynamics/example_dataset.csv
 ```
 
@@ -99,7 +94,7 @@ Train with default configuration and example dataset:
 Train with custom config file:
 
 ```bash
-./bin/python_exec -m lotf.scripts.train_residual \
+uv run train residual \
     --config configs/residual_dynamics.yaml \
     --dataset examples/residual_dynamics/example_dataset.csv
 ```
@@ -109,7 +104,7 @@ Train with custom config file:
 Save checkpoint to custom location:
 
 ```bash
-./bin/python_exec -m lotf.scripts.train_residual \
+uv run train residual \
     --config configs/residual_dynamics.yaml \
     --dataset examples/residual_dynamics/example_dataset.csv \
     --output checkpoints/residual_dynamics/my_model
@@ -190,7 +185,7 @@ State-based hovering training uses Backpropagation Through Time (BPTT) to train 
 Train with default configuration:
 
 ```bash
-./bin/python_exec -m lotf.scripts.train_state_hovering
+uv run train hover
 ```
 
 #### Custom Configuration
@@ -198,7 +193,7 @@ Train with default configuration:
 Train with custom config file:
 
 ```bash
-./bin/python_exec -m lotf.scripts.train_state_hovering \
+uv run train hover \
     --config configs/state_hovering.yaml
 ```
 
@@ -207,7 +202,7 @@ Train with custom config file:
 Save checkpoint to custom location:
 
 ```bash
-./bin/python_exec -m lotf.scripts.train_state_hovering \
+uv run train hover \
     --config configs/state_hovering.yaml \
     --output checkpoints/policy/my_hovering_policy
 ```
@@ -320,7 +315,7 @@ Trajectory tracking training uses BPTT to train a neural network policy that fol
 Train with default configuration:
 
 ```bash
-./bin/python_exec -m lotf.scripts.train_traj_tracking
+uv run train track
 ```
 
 #### Custom Configuration
@@ -328,7 +323,7 @@ Train with default configuration:
 Train with custom config file:
 
 ```bash
-./bin/python_exec -m lotf.scripts.train_traj_tracking \
+uv run train track \
     --config configs/traj_tracking.yaml
 ```
 
@@ -337,7 +332,7 @@ Train with custom config file:
 Save checkpoint to custom location:
 
 ```bash
-./bin/python_exec -m lotf.scripts.train_traj_tracking \
+uv run train track \
     --config configs/traj_tracking.yaml \
     --checkpoint checkpoints/policy/my_tracking_policy
 ```
@@ -456,7 +451,7 @@ Pretraining collects rollout data and trains a model to predict future states.
 
 #### Pretraining Workflow
 
-**Note**: Pretraining is typically done via Jupyter notebooks. See `examples/vision_hovering/1_pretrain_base_policy.ipynb`. To run the example code below as a script, save it to a file (e.g., `pretrain.py`) and run with `./bin/python_exec pretrain.py`.
+**Note**: Pretraining is typically done via Jupyter notebooks. See `examples/vision_hovering/1_pretrain_base_policy.ipynb`. To run the example code below as a script, save it to a file (e.g., `pretrain.py`) and run with `uv run python pretrain.py`.
 
 ```python
 import jax
@@ -584,7 +579,7 @@ optimizer:
 
 ## Checkpoint Loading Examples
 
-> **Note**: Save any of these Python code blocks to a file (e.g., `load_checkpoint.py`) and run with `./bin/python_exec load_checkpoint.py`. The `python_exec` wrapper will automatically set up the virtual environment.
+> **Note**: Save any of these Python code blocks to a file (e.g., `load_checkpoint.py`) and run with `uv run python load_checkpoint.py`.
 
 ### Loading Residual Dynamics Checkpoints
 
@@ -885,10 +880,10 @@ If you encounter CUDA out of memory errors:
 - Too many epochs
 
 **Solutions**:
-- Verify GPU is being used: `./bin/python_exec -c "import jax; print(jax.devices())"`
+- Verify GPU is being used: `uv run python -c "import jax; print(jax.devices())"`
 - Increase `num_envs` in config file
 - Use fewer epochs for testing
-- Use `./bin/python_exec -m lotf.scripts.train_*` with GPU backend
+- Use `uv run python -m lotf.scripts.train_*` with GPU backend
 
 #### 3. Poor Policy Performance
 

@@ -41,7 +41,7 @@ import yaml
 from flax.training.train_state import TrainState
 from orbax.checkpoint import PyTreeCheckpointer
 
-from lotf import LOTF_PATH
+from lotf import LOTF_ROOT, resolve_path
 from lotf.algos import bptt
 from lotf.envs import HoveringStateEnv
 from lotf.envs.wrappers import LogWrapper, MinMaxObservationWrapper, VecEnv
@@ -130,6 +130,8 @@ class StateHoveringConfig:
             ValueError: If YAML parsing fails.
         """
         path = Path(path)
+        if not path.is_absolute():
+            path = LOTF_ROOT / path
         if not path.exists():
             raise FileNotFoundError(f"Configuration file not found: {path}")
 
@@ -279,7 +281,7 @@ def load_dummy_residual_params() -> Any:
     Returns:
         Dummy residual dynamics parameters.
     """
-    path = LOTF_PATH + "/../checkpoints/residual_dynamics/dummy_params"
+    path = LOTF_ROOT / "checkpoints" / "residual_dynamics" / "dummy_params"
     ckptr = PyTreeCheckpointer()
     return ckptr.restore(path)
 
@@ -293,7 +295,7 @@ def get_unique_checkpoint_path(base_path: Path) -> Path:
     Returns:
         Unique checkpoint path (either original or with timestamp suffix).
     """
-    path = base_path.resolve()
+    path = resolve_path(base_path)
     if not path.exists():
         return path
 

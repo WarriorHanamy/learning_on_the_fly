@@ -44,7 +44,7 @@ import yaml
 from flax.training.train_state import TrainState
 from orbax.checkpoint import PyTreeCheckpointer
 
-from lotf import LOTF_PATH
+from lotf import LOTF_ROOT, resolve_path
 from lotf.utils.residual_dynamics import create_vec_funcs
 
 
@@ -89,6 +89,8 @@ class ResidualDynamicsConfig:
             ValueError: If YAML parsing fails.
         """
         path = Path(path)
+        if not path.is_absolute():
+            path = LOTF_ROOT / path
         if not path.exists():
             raise FileNotFoundError(f"Configuration file not found: {path}")
 
@@ -124,12 +126,12 @@ def load_dataset(path: str, input_dim: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
     Raises:
         FileNotFoundError: If the dataset file does not exist.
     """
-    file_path = Path(path)
+    file_path = resolve_path(path)
     if not file_path.exists():
         raise FileNotFoundError(f"Dataset file not found: {path}")
 
     # Read CSV without header
-    df = pd.read_csv(path, header=None)
+    df = pd.read_csv(file_path, header=None)
     dataset = df.to_numpy()
 
     # Split into input and output
@@ -178,7 +180,7 @@ def get_unique_checkpoint_path(base_path: Path) -> Path:
     Returns:
         Unique checkpoint path (either original or with timestamp suffix).
     """
-    path = base_path.resolve() if isinstance(base_path, Path) else Path(base_path).resolve()
+    path = resolve_path(base_path) if isinstance(base_path, Path) else resolve_path(base_path)
     if not path.exists():
         return path
 
