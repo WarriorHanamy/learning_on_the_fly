@@ -46,12 +46,12 @@ def load_policy_and_env(checkpoint_path: str, config: dict, env_type: str):
     sim_dt = config.get("sim_dt", 0.02)
     max_sim_time = config.get("max_sim_time", 5.0)
     delay = config.get("delay", 0.04)
-    margin = config.get("margin", 0.5)
 
     quad_obj = Quadrotor.from_name("example_quad", sim_dyn_config)
 
     if env_type == "hover":
         hover_target = config.get("hover_target", [1.5, 0.0, 1.5])
+        margin = config.get("margin", 0.5)
         env = HoveringStateEnv(
             max_steps_in_episode=int(max_sim_time / sim_dt),
             dt=sim_dt,
@@ -61,12 +61,15 @@ def load_policy_and_env(checkpoint_path: str, config: dict, env_type: str):
             hover_target=hover_target,
         )
     elif env_type == "track":
+        ref_traj_name = config.get("ref_traj_name", "fig8")
+        skip_start = config.get("skip_start", True)
         env = TrajTrackingStateEnv(
             max_steps_in_episode=int(max_sim_time / sim_dt),
             dt=sim_dt,
             delay=delay,
             quad_obj=quad_obj,
-            margin=margin,
+            ref_traj_name=ref_traj_name,
+            skip_start=skip_start,
         )
     else:
         raise ValueError(f"Unknown env_type: {env_type}")
@@ -115,6 +118,7 @@ def run_rollout(env, policy_fn, residual_params, seed: int = 0):
         velocities: (T, 3) velocities in world frame [m/s].
         eulers: (T, 3) Euler angles (roll, pitch, yaw) [deg].
         dt: simulation timestep [s].
+        ref_positions: (N, 3) reference trajectory positions (None for hover).
     """
     key = jax.random.key(seed)
     transitions = rollout(env, key, policy_fn, residual_params)
@@ -126,10 +130,15 @@ def run_rollout(env, policy_fn, residual_params, seed: int = 0):
         [Rotation.from_matrix(R[i]).as_euler("xyz", degrees=True) for i in range(len(R))]
     )
 
-    return positions, velocities, eulers, env.dt
+    # extract reference trajectory if available (track env)
+    ref_positions = None
+    if hasattr(env, "ref_traj"):
+        ref_positions = np.array(env.ref_traj[:, 1:4])  # pos columns: px, py, pz
+
+    return positions, velocities, eulers, env.dt, ref_positions
 
 
-def build_time_series_figure(t, positions, velocities, eulers):
+def build_time_series_figure(t, positions, velocities, eulers, ref_positions=None, ref_t=None):
     """Build a Plotly figure with pos3D, velocity, and euler angle subplots."""
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
@@ -158,6 +167,42 @@ def build_time_series_figure(t, positions, velocities, eulers):
         row=1,
         col=1,
     )
+
+    # reference trajectory (dashed) if available
+    if ref_positions is not None and ref_t is not None:
+        fig.add_trace(
+            go.Scattergl(
+                x=ref_t,
+                y=ref_positions[:, 0],
+                mode="lines",
+                name="ref_x",
+                line=dict(color="red", dash="dash"),
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scattergl(
+                x=ref_t,
+                y=ref_positions[:, 1],
+                mode="lines",
+                name="ref_y",
+                line=dict(color="green", dash="dash"),
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scattergl(
+                x=ref_t,
+                y=ref_positions[:, 2],
+                mode="lines",
+                name="ref_z",
+                line=dict(color="blue", dash="dash"),
+            ),
+            row=1,
+            col=1,
+        )
 
     # Velocity over time
     fig.add_trace(
@@ -208,7 +253,7 @@ def build_time_series_figure(t, positions, velocities, eulers):
     return fig
 
 
-def launch_viewer(positions, velocities, eulers, dt):
+def launch_viewer(positions, velocities, eulers, dt, ref_positions=None):
     """Launch an interactive 3D viewer with viser and time-series plots.
 
     Args:
@@ -216,6 +261,7 @@ def launch_viewer(positions, velocities, eulers, dt):
         velocities: (T, 3) array of velocities [m/s].
         eulers: (T, 3) array of Euler angles [deg].
         dt: simulation timestep [s].
+        ref_positions: optional (N, 3) reference trajectory positions.
     """
     import viser
 
@@ -232,6 +278,16 @@ def launch_viewer(positions, velocities, eulers, dt):
         segments=200,
         line_width=3.0,
     )
+
+    # reference trajectory (dashed, semi-transparent)
+    if ref_positions is not None:
+        server.scene.add_spline_catmull_rom(
+            "/ref_trajectory",
+            ref_positions,
+            color=(255, 180, 80),
+            segments=min(200, len(ref_positions)),
+            line_width=1.5,
+        )
 
     frame_handle = server.scene.add_frame(
         "/frame",
@@ -264,7 +320,10 @@ def launch_viewer(positions, velocities, eulers, dt):
     speed = server.add_gui_slider("Speed", min=0.1, max=5.0, step=0.1, initial_value=1.0)
 
     # bottom time-series plots
-    fig = build_time_series_figure(t, positions, velocities, eulers)
+    ref_t = None
+    if ref_positions is not None:
+        ref_t = np.arange(len(ref_positions)) * dt
+    fig = build_time_series_figure(t, positions, velocities, eulers, ref_positions, ref_t)
     server.add_gui_plotly(figure=fig)
 
     @step.on_update
@@ -359,11 +418,13 @@ Examples:
     policy_fn, env, residual_params = load_policy_and_env(checkpoint, config, args.env_type)
 
     print("Running rollout...")
-    positions, velocities, eulers, dt = run_rollout(env, policy_fn, residual_params, seed=args.seed)
+    positions, velocities, eulers, dt, ref_positions = run_rollout(
+        env, policy_fn, residual_params, seed=args.seed
+    )
     print(f"Rollout complete: {len(positions)} timesteps, dt={dt:.3f}s")
 
     print(f"Launching 3D viewer at http://127.0.0.1:{args.port}")
-    launch_viewer(positions, velocities, eulers, dt)
+    launch_viewer(positions, velocities, eulers, dt, ref_positions)
 
     return 0
 
