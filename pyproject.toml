@@ -7,46 +7,41 @@ name = "lotf"
 version = "0.1.0"
 description = "A Python package to learn agile flight using differentiable simulation."
 readme = "README.md"
-license = {text = "MIT"}
-authors = [
-    {name = "Michael Pan", email = "michael.pan31415@gmail.com"}
-]
+license = { text = "MIT" }
+authors = [{ name = "Michael Pan", email = "michael.pan31415@gmail.com" }]
 requires-python = ">=3.12"
 dependencies = [
-    "jax>=0.4.30",
-    "jaxlib>=0.4.30",
-    "flax>=0.8.5",
-    "optax>=0.2.4",
-    "orbax-checkpoint>=0.6.4",
-    "chex>=0.1.90",
-    "jax-dataclasses>=1.6.2",
-    "numpy>=1.26.4",
-    "scipy>=1.13.1",
-    "pandas",
-    "matplotlib",
-    "seaborn",
-    "pyyaml",
-    "tqdm",
-    "minco-python",
-    "viser",
-    "nodeenv>=1.10.0",
-    "plotly>=6.7.0",
+  "jax>=0.4.30",
+  "jaxlib>=0.4.30",
+  "flax>=0.8.5",
+  "optax>=0.2.4",
+  "orbax-checkpoint>=0.6.4",
+  "chex>=0.1.90",
+  "jax-dataclasses>=1.6.2",
+  "numpy>=1.26.4",
+  "scipy>=1.13.1",
+  "pandas",
+  "matplotlib",
+  "seaborn",
+  "pyyaml",
+  "tqdm",
+  "minco-python",
+  "viser",
+  "nodeenv>=1.10.0",
+  "plotly>=6.7.0",
 ]
 
 [project.scripts]
 train = "lotf.__main__:main"
-lotf = "lotf.__main__:main"
 play = "lotf.__main__:main_play"
 
 [project.optional-dependencies]
-cuda12 = [
-    "jax[cuda12]>=0.4.30",
-]
+cuda12 = ["jax[cuda12]>=0.4.30"]
 dev = [
-    "pytest>=8.0",
-    "pytest-cov>=6.0",
-    "pytest-repeat>=0.9",
-    "pytest-rerunfailures>=15.0",
+  "pytest>=8.0",
+  "pytest-cov>=6.0",
+  "pytest-repeat>=0.9",
+  "pytest-rerunfailures>=15.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -59,10 +54,10 @@ viser = { path = "deps/viser" }
 
 [dependency-groups]
 dev = [
-    "pytest>=8.0",
-    "pytest-cov>=6.0",
-    "pytest-repeat>=0.9",
-    "pytest-rerunfailures>=15.0",
+  "pytest>=8.0",
+  "pytest-cov>=6.0",
+  "pytest-repeat>=0.9",
+  "pytest-rerunfailures>=15.0",
 ]
 
 [tool.ruff]
