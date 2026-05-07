@@ -1288,6 +1288,19 @@ LoRA 就像电源适配器，将预训练模型"插到"新任务上，而不改�
 
 ---
 
+## JAX Teaching Resources
+
+When a team member wants to understand a JAX/PyTree utility used in the codebase, write a self-contained demo script under `_tmp/` (e.g., `_tmp/pytrees_demo.py`) that:
+
+1. Re-implements the utility function inline (so no imports from `lotf` are needed)
+2. Creates minimal mock data structures that mirror the real ones (e.g., a trimmed `QuadrotorState`)
+3. Shows concrete before/after shapes and values with `print()` statements
+4. Includes comments linking back to the actual code location where the utility is used
+
+Run the demo with `uv run python _tmp/<name>.py` to verify correctness. Teaching scripts under `_tmp/` are ephemeral; they are NOT committed to the repository.
+
+---
+
 ## License
 
 MIT License - 详见 LICENSE 文件
