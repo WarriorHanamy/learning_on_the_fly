@@ -14,7 +14,7 @@ The forward rollout is a **two-tier simulation stack**:
 
 ### 1.1 Control Delay Simulation
 
-Both `HoveringStateEnv._step()` and `TrajTrackingStateEnv._step()` implement a rolling action buffer to simulate real-world control latency.
+`TrajTrackingStateEnv._step()` implements a rolling action buffer to simulate real-world control latency.
 
 ```python
 num_last_actions = ceil(delay / dt) + 1   # e.g. 0.04 / 0.02 + 1 = 3
@@ -32,7 +32,7 @@ if dt_1 < dt:
 - `delay == dt` → oldest action applies for the full timestep
 - `delay == 0` → immediate action application (no buffer)
 
-**Source**: `lotf/envs/hovering_state_env.py:177-221`, `lotf/envs/traj_tracking_state_env.py:210-250`
+**Source**: `lotf/envs/traj_tracking_state_env.py:210-250`
 
 ### 1.2 Physics Model Dispatch
 
@@ -290,7 +290,7 @@ state_dot_new = state_dot.replace(
 │                              ↓                                    │
 │  Stage 2: Train Policy (BPTT)                                    │
 │  ┌────────────────────────────────────────────────────────────┐  │
-│  │  Policy MLP: [obs_dim, 512, 512, 4] + hovering_bias       │  │
+│  │  Policy MLP: [obs_dim, 512, 512, 4]                       │  │
 │  │       ↓                                                     │  │
 │  │  [FORWARD]   Quadrotor.step() → full dynamics + residual   │  │
 │  │       ↓  reward = −dt · Σsmooth_l1(state_error, action)    │  │
@@ -315,5 +315,5 @@ state_dot_new = state_dot.replace(
 | Ensemble predict | `lotf/utils/residual_dynamics.py` | 12–23 |
 | Ensemble training | `lotf/utils/residual_dynamics.py` | 92–145 |
 | BPTT training loop | `lotf/algos/bptt.py` | 67–187 |
-| Control delay | `lotf/envs/hovering_state_env.py` | 177–221 |
-| Reward computation | `lotf/envs/hovering_state_env.py` | 223–258 |
+| Control delay | `lotf/envs/traj_tracking_state_env.py` | 210–250 |
+| Reward computation | `lotf/envs/traj_tracking_state_env.py` | 252–287 |

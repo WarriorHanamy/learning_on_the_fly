@@ -1,13 +1,12 @@
 # Training Guide
 
-This guide provides comprehensive documentation for training all three tasks in Learning on the Fly (LOTF): residual dynamics learning, state-based hovering, and trajectory tracking.
+This guide provides comprehensive documentation for training all tasks in Learning on the Fly (LOTF): residual dynamics learning and trajectory tracking.
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
 - [Task 1: Residual Dynamics Training](#task-1-residual-dynamics-training)
-- [Task 2: State-Based Hovering Training](#task-2-state-based-hovering-training)
 - [Task 3: Trajectory Tracking Training](#task-3-trajectory-tracking-training)
 - [Checkpoint Loading Examples](#checkpoint-loading-examples)
 - [GPU Requirements and Optimization](#gpu-requirements-and-optimization)
@@ -15,12 +14,11 @@ This guide provides comprehensive documentation for training all three tasks in 
 
 ## Overview
 
-LOTF provides training scripts for four different tasks:
+LOTF provides training scripts for two different tasks:
 
 | Task | Purpose | Method | GPU Required |
 |------|---------|--------|--------------|
 | Residual Dynamics | Learn physics residuals from real data | Supervised learning (MSE) | Optional |
-| State Hovering | Train hovering policy from state observations | BPTT (reinforcement learning) | Recommended |
 | Trajectory Tracking | Track predefined trajectories | BPTT (reinforcement learning) | Recommended |
 
 ## Prerequisites
@@ -172,136 +170,6 @@ Training complete!
 - **CPU**: ~10-30 seconds for 1000 samples, 100 epochs
 - **GPU**: ~2-10 seconds for 1000 samples, 100 epochs
 
-## Task 2: State-Based Hovering Training
-
-State-based hovering training uses Backpropagation Through Time (BPTT) to train a neural network policy that maintains quadrotor position at a target hover point using only state observations.
-
-### Training Commands
-
-#### Basic Training
-
-Train with default configuration:
-
-```bash
-uv run train hover
-```
-
-#### Custom Configuration
-
-Train with custom config file:
-
-```bash
-uv run train hover \
-    --config configs/state_hovering.yaml
-```
-
-#### Custom Output Path
-
-Save checkpoint to custom location:
-
-```bash
-uv run train hover \
-    --config configs/state_hovering.yaml \
-    --output checkpoints/policy/my_hovering_policy
-```
-
-### Configuration File
-
-Edit `configs/state_hovering.yaml` to customize training:
-
-```yaml
-# Random seed for reproducibility
-seed: 0
-
-# Training parameters
-num_envs: 200              # Number of parallel environments
-max_epochs: 200            # Number of training epochs
-
-# Simulation parameters
-sim_dt: 0.02               # Simulation time step (seconds)
-max_sim_time: 3.0          # Maximum simulation time per episode (seconds)
-delay: 0.04                # Action delay (seconds)
-
-# Reward parameters
-reward_sharpness: 3.0      # Sharpness parameter for reward function
-action_penalty_weight: 0.5   # Weight for action penalty in reward
-
-# Hover target position [x, y, z]
-hover_target:
-  - 1.5
-  - 0.0
-  - 1.5
-
-# Simulation dynamics config
-sim_dyn_config:
-  use_high_fidelity: false   # Use high-fidelity dynamics
-  use_forward_residual: false # Use residual dynamics in forward sim
-
-# Environment noise parameters
-yaw_scale: 1.0             # Yaw randomization scale
-pitch_roll_scale: 0.1       # Pitch/roll randomization scale
-velocity_std: 0.1           # Velocity noise std
-omega_std: 0.1              # Angular velocity noise std
-margin: 0.5                 # Initial position randomization margin
-
-# Policy network architecture
-policy_net:
-  hidden_layers:
-    - 512
-    - 512
-  initial_scale: 0.01       # Weight initialization scale
-
-# Optimizer settings
-optimizer:
-  initial_lr: 0.005         # Initial learning rate
-  scheduler: cosine_decay    # Learning rate scheduler
-```
-
-### CLI Arguments
-
-| Argument | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `--config` | No | `configs/state_hovering.yaml` | Path to YAML config file |
-| `--output` | No | `checkpoints/policy/state_hovering_params` | Checkpoint output path |
-
-### BPTT Notes
-
-**Warning**: This task uses BPTT which is computationally expensive. GPU is highly recommended.
-
-- **Parallel environments**: 200+ parallel environments for efficient gradient estimation
-- **Episode length**: 150 steps (3.0 seconds @ 0.02s/step)
-- **Training time**: ~5-15 minutes on GPU, ~30-60 minutes on CPU
-- **Memory usage**: ~2-4GB GPU memory for default settings
-
-### Expected Output
-
-```
-Loading configuration from: configs/state_hovering.yaml
-Initializing with seed: 0
-Creating environment...
-Environment info:
-  action_dim: 4
-  obs_dim: 27
-  target hover goal: [1.5 0.  1.5]
-  max_steps_in_episode: 150
-Creating policy network...
-Loading dummy residual dynamics parameters...
-Initializing 200 parallel environments...
-
-Starting training for 200 epochs...
---------------------------------------------------
-Epoch 0/200 | Loss: 1.234 | Return: -1.234
-Epoch 10/200 | Loss: 0.856 | Return: -0.856
-...
-Epoch 200/200 | Loss: 0.123 | Return: -0.123
---------------------------------------------------
-Compile + Training time: 325.42s
-Final reward: -0.12
-Policy saved successfully to: checkpoints/policy/state_hovering_params
-
-Training complete!
-```
-
 ## Task 3: Trajectory Tracking Training
 
 Trajectory tracking training uses BPTT to train a neural network policy that follows predefined reference trajectories (Circle, Figure-8, Star).
@@ -401,7 +269,7 @@ To change trajectory, modify `ref_traj_name` in config file.
 
 ### BPTT Notes
 
-**Warning**: This task uses BPTT with longer episodes than hovering. GPU is highly recommended.
+**Warning**: This task uses BPTT which is computationally expensive. GPU is highly recommended.
 
 - **Parallel environments**: 300+ parallel environments for efficient gradient estimation
 - **Episode length**: 250 steps (5.0 seconds @ 0.02s/step)
@@ -457,61 +325,6 @@ sim_dyn_config = {
     "use_high_fidelity": True,
     "use_forward_residual": True,  # Use learned residuals
 }
-```
-
-### Loading Policy Checkpoints (State-Based Hovering)
-
-```python
-import jax
-import optax
-from flax.training.train_state import TrainState
-from lotf import LOTF_PATH
-from lotf.envs import HoveringStateEnv
-from lotf.envs.wrappers import MinMaxObservationWrapper
-from lotf.modules import MLP
-from lotf.objects import Quadrotor
-from orbax.checkpoint import PyTreeCheckpointer
-
-# Create environment
-sim_dyn_config = {
-    "use_high_fidelity": False,
-    "use_forward_residual": False,
-}
-quad_obj = Quadrotor.from_name("example_quad", sim_dyn_config)
-
-eval_env = HoveringStateEnv(
-    max_steps_in_episode=int(5.0 / 0.02),
-    dt=0.02,
-    delay=0.04,
-    quad_obj=quad_obj,
-    margin=0.5,
-    hover_target=[1.5, 0.0, 1.5],
-)
-eval_env = MinMaxObservationWrapper(eval_env)
-
-action_dim = eval_env.action_space.shape[0]
-obs_dim = eval_env.observation_space.shape[0]
-
-# Create policy network and load parameters
-policy_name = "state_hovering_params"
-
-base_policy_net = MLP(
-    [obs_dim, 512, 512, action_dim],
-    action_bias=eval_env.hovering_action,
-)
-
-path = LOTF_PATH + "/../checkpoints/policy/" + policy_name
-ckptr = PyTreeCheckpointer()
-base_policy_params = ckptr.restore(path)
-loaded_train_state = TrainState.create(
-    apply_fn=base_policy_net.apply,
-    params=base_policy_params,
-    tx=optax.adam(1e-3)
-)
-
-# Define policy function for rollout
-def policy_trained(obs, key):
-    return loaded_train_state.apply_fn(loaded_train_state.params, obs)
 ```
 
 ### Loading Policy Checkpoints (Trajectory Tracking)
@@ -603,7 +416,6 @@ eval_env.plot_trajectories(transitions_eval)
 | Task | Minimum GPU | Recommended GPU | GPU Memory Required |
 |------|--------------|-----------------|-------------------|
 | Residual Dynamics | CPU OK | RTX 3060 | 1-2GB |
-| State Hovering | GTX 1660 | RTX 3070 | 2-4GB |
 | Trajectory Tracking | GTX 1660 | RTX 3070 | 3-6GB |
 
 ### GPU Memory Optimization

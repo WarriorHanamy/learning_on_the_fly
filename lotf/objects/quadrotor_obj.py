@@ -218,20 +218,20 @@ class Quadrotor:
         )
 
     @property
-    def hovering_motor_speed(self) -> float:
+    def nominal_motor_speed_given_hovering(self) -> float:
         """Calculates the theoretical motor speed required to hover [rad/s]."""
         return jnp.sqrt(self._mass * 9.81 / (4 * self._thrust_map[0]))
 
     def default_state(self) -> QuadrotorState:
-        """Returns a state initialized with hovering motor speeds."""
-        hovering_motor_speeds = jnp.ones(4) * self.hovering_motor_speed
-        return QuadrotorState(motor_omega=hovering_motor_speeds)
+        """Returns a state initialized with nominal motor speeds."""
+        nominal_motor_speeds = jnp.ones(4) * self.nominal_motor_speed_given_hovering
+        return QuadrotorState(motor_omega=nominal_motor_speeds)
 
     def create_state(self, p, R, v, **kwargs) -> QuadrotorState:
         """Helper to create a state with specific position/rotation/velocity."""
-        hovering_motor_speed = jnp.ones(4) * self.hovering_motor_speed
+        nominal_motor_speed = jnp.ones(4) * self.nominal_motor_speed_given_hovering
         if "motor_omega" not in kwargs.keys():
-            kwargs["motor_omega"] = hovering_motor_speed
+            kwargs["motor_omega"] = nominal_motor_speed
 
         return QuadrotorState(p, R, v, **kwargs)
 

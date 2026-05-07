@@ -8,12 +8,10 @@ Usage:
     uv run train --help
     uv run train --version
     uv run train --list-configs
-    uv run train hover --config configs/state_hovering.yaml
     uv run train track --config configs/traj_tracking.yaml
     uv run train residual --config configs/residual_dynamics.yaml --dataset data.csv
 
 Subcommands:
-    hover     Train state-based hovering policy
     track     Train trajectory tracking policy
     residual  Train residual dynamics ensemble model
 """
@@ -86,9 +84,6 @@ Examples:
     # List available configs
     uv run train --list-configs
 
-    # Train hovering policy
-    uv run train hover --config configs/state_hovering.yaml
-
     # Train trajectory tracking
     uv run train track --config configs/traj_tracking.yaml
 
@@ -96,7 +91,6 @@ Examples:
     uv run train residual --config configs/residual_dynamics.yaml --dataset data.csv
 
 For subcommand help:
-    uv run train hover --help
     uv run train track --help
     uv run train residual --help
         """,
@@ -121,31 +115,6 @@ For subcommand help:
         title="subcommands",
         description="Training tasks available:",
         metavar="COMMAND",
-    )
-
-    # hover subcommand
-    hover_parser = subparsers.add_parser(
-        "hover",
-        help="Train state-based hovering policy",
-        description="Train a neural network policy for quadrotor hovering using BPTT.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-    uv run train hover --config configs/state_hovering.yaml
-    uv run train hover --config configs/state_hovering.yaml --output checkpoints/my_policy
-        """,
-    )
-    hover_parser.add_argument(
-        "--config",
-        type=str,
-        default="configs/state_hovering.yaml",
-        help="Path to YAML configuration file (default: configs/state_hovering.yaml)",
-    )
-    hover_parser.add_argument(
-        "--output",
-        type=str,
-        default="checkpoints/policy/state_hovering_params",
-        help="Path to save the trained policy checkpoint",
     )
 
     # track subcommand
@@ -259,20 +228,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     # Dispatch to subcommand handlers
-    if args.command == "hover":
-        from lotf.scripts.train_state_hovering import main as train_hover
-
-        # Build argv for the training script
-        train_argv = [
-            "train_state_hovering",
-            "--config",
-            args.config,
-            "--output",
-            args.output,
-        ]
-        return _run_with_argv(train_hover, train_argv)
-
-    elif args.command == "track":
+    if args.command == "track":
         from lotf.scripts.train_traj_tracking import main as train_track
 
         # Build argv for the training script

@@ -39,11 +39,6 @@ uv run pytest tests/test_checkpoints.py
 ```
 checkpoints/
 ├── policy/
-│   ├── state_hovering_params/
-│   │   ├── _CHECKPOINT_METADATA
-│   │   ├── _METADATA
-│   │   ├── _sharding
-│   │   └── manifest.ocdbt
 │   └── traj_tracking_params/
 └── residual_dynamics/
     ├── example_params/
@@ -137,19 +132,6 @@ def load_residual_checkpoint(checkpoint_path: str) -> jnp.ndarray:
 ```
 
 ### Checkpoint Operations in Training Scripts
-
-#### State Hovering Training
-
-```python
-# Save trained policy
-trained_policy_params = runner_state.train_state.params
-save_checkpoint("checkpoints/policy/my_hovering_policy", trained_policy_params)
-
-# Load dummy residual dynamics (for initialization)
-path = "checkpoints/residual_dynamics/dummy_params"
-ckptr = PyTreeCheckpointer()
-dummy_residual = ckptr.restore(path)
-```
 
 #### Trajectory Tracking Training
 

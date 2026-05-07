@@ -27,7 +27,6 @@ learning_on_the_fly/
 │   │   └── bptt.py         # 通过时间反向传播 (BPTT)
 │   ├── envs/               # 环境层
 │   │   ├── env_base.py              # 环境基类
-│   │   ├── hovering_state_env.py    # 状态悬停环境
 │   │   ├── traj_tracking_state_env.py # 轨迹跟踪环境
 │   │   └── wrappers.py              # 环境包装器
 │   ├── modules/            # 神经网络模块层
@@ -49,7 +48,7 @@ learning_on_the_fly/
 │   │   ├── configs.py   # 配置数据类
 │   │   └── loader.py    # YAML 加载器
 │   ├── scripts/           # 训练脚本
-│   │   ├── train_state_hovering.py
+│   │   ├── traj_tracking_state_env.py # 轨迹跟踪环境
 │   │   ├── train_traj_tracking.py
 │   │   └── train_residual.py
 │   ├── __init__.py        # 包初始化 (LOTF_ROOT, resolve_path)
@@ -57,7 +56,6 @@ learning_on_the_fly/
 │
 ├── examples/              # Jupyter notebook 示例
 │   ├── residual_dynamics/ # 残差动力学（1个笔记本）
-│   ├── state_hovering/    # 状态悬停（4个笔记本）
 │   └── traj_tracking/     # 轨迹跟踪（4个笔记本）
 │
 ├── tests/                 # 单元测试
@@ -66,11 +64,11 @@ learning_on_the_fly/
 │   │   └── test_config_loader.py
 │   └── scripts/
 │       ├── test_train_residual.py
-│       ├── test_train_state_hovering.py
+│       ├── test_train_traj_tracking.py
 │       └── test_train_traj_tracking.py
 │
 ├── configs/               # YAML 配置文件
-│   ├── state_hovering.yaml
+│   ├── traj_tracking.yaml
 │   ├── traj_tracking.yaml
 │   └── residual_dynamics.yaml
 │
@@ -103,12 +101,12 @@ learning_on_the_fly/
 
 ### 文件命名约定
 
-- **Python 模块**: `snake_case.py`（如 `hovering_state_env.py`）
+- **Python 模块**: `snake_case.py`（如 `traj_tracking_state_env.py`）
 - **类名**: `PascalCase`（如 `QuadrotorState`、`ResidualDynamicsConfig`）
 - **函数名**: `snake_case`（如 `create_ensemble`、`load_dataset`）
 - **Jupyter Notebooks**: 数字前缀 + 描述性名称（如 `1_train_base_policy.ipynb`）
-- **配置文件**: `snake_case.yaml`（如 `state_hovering.yaml`）
-- **测试文件**: `test_<module>.py`（如 `test_train_state_hovering.py`）
+- **配置文件**: `snake_case.yaml`（如 `traj_tracking.yaml`）
+- **测试文件**: `test_<module>.py`（如 `test_train_traj_tracking.py`）
 
 ---
 
@@ -155,12 +153,20 @@ uv run train residual \
   --output checkpoints/residual_dynamics/my_model
 ```
 
+#### 2. 训练轨迹跟踪策略
+
+```bash
+uv run train track \
+  --config configs/traj_tracking.yaml \
+  --output checkpoints/policy/my_tracking_policy
+```
+
 #### 2. 训练状态悬停策略
 
 ```bash
-uv run train hover \
-  --config configs/state_hovering.yaml \
-  --output checkpoints/policy/my_hovering_policy
+uv run train track \
+  --config configs/traj_tracking.yaml \
+  --output checkpoints/policy/my_tracking_policy
 ```
 
 #### 3. 训练轨迹跟踪策略
@@ -175,7 +181,7 @@ uv run train track \
 
 ```bash
 # 启动 Jupyter Lab
-jupyter lab examples/state_hovering
+jupyter lab examples/traj_tracking
 
 # 按顺序执行笔记本：
 # 1_train_base_policy.ipynb      - 训练基础策略
@@ -199,13 +205,13 @@ jupyter lab examples/state_hovering
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                       配置管理层                             │
-│  YAML 配置文件 | 数据类配置 (StateHoveringConfig)            │
+│  YAML 配置文件 | 数据类配置 (TrajTrackingConfig)            │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                        训练脚本层                             │
-│  train_state_hovering.py | train_traj_tracking.py            │
+│  train_traj_tracking.py                                   │
 │  train_residual.py                                        │
 └─────────────────────────────────────────────────────────────┘
                             │
@@ -214,7 +220,7 @@ jupyter lab examples/state_hovering
                 ▼                       ▼
 ┌──────────────────────────┐  ┌──────────────────────────┐
 │     算法层 (algos/)      │  │    环境层 (envs/)       │
-│  BPTT 训练循环            │  │  HoveringStateEnv        │
+│  BPTT 训练循环            │  │  TrajTrackingStateEnv        │
 │  损失函数计算             │  │  TrajTrackingStateEnv    │
 └──────────────────────────┘  └──────────────────────────┘
                 │                       │
@@ -321,7 +327,7 @@ class ReferenceTraj:
 ```
 checkpoints/
 ├── policy/
-│   ├── state_hovering_params/
+│   ├── traj_tracking_params/
 │   ├── traj_tracking_params/
 └── residual_dynamics/
     ├── dummy_params/
@@ -404,7 +410,7 @@ CSV 数据集 → pandas 加载 → JAX 数组 → 向量化初始化 → 集成
 
 **具体环境**：
 
-1. **HoveringStateEnv**: 训练四旋翼保持固定悬停位置
+1. **TrajTrackingStateEnv**: 训练四旋翼保持固定悬停位置
    - 包含控制延迟模拟（动作历史缓冲区）
    - 基于位置、速度和控制努力计算奖励
 
@@ -465,18 +471,6 @@ CSV 数据集 → pandas 加载 → JAX 数组 → 向量化初始化 → 集成
 - **训练**: MSE 损失 + 谱正则化
 
 #### 奖励计算
-
-**悬停奖励**（`hovering_state_env.py`）:
-
-```python
-pos_cost = smooth_l1(sharpness * (position - goal))
-vel_cost = 0.1 * smooth_l1(velocity)
-omega_cost = 0.1 * smooth_l1(angular_velocity)
-acc_cost = 0.1 * smooth_l1(acceleration)
-action_cost = action_penalty_weight * smooth_l1(action - hover_action)
-total_cost = pos_cost + vel_cost + omega_cost + acc_cost + action_cost
-reward = -dt * total_cost
-```
 
 **轨迹跟踪奖励**（`traj_tracking_state_env.py`）:
 
@@ -618,9 +612,9 @@ uv run train residual \
 **2. 状态悬停训练**
 
 ```bash
-uv run train hover \
-  --config configs/state_hovering.yaml \
-  --output checkpoints/policy/state_hovering_params
+uv run train track \
+  --config configs/traj_tracking.yaml \
+  --output checkpoints/policy/traj_tracking_params
 ```
 
 **3. 轨迹跟踪训练**
@@ -640,11 +634,11 @@ uv run train track \
 from lotf.envs.env_base import Env, EnvState, EnvTransition, rollout
 
 # 创建环境
-env = HoveringStateEnv(
+env = TrajTrackingStateEnv(
     max_steps_in_episode=10000,
     dt=0.02,
     delay=0.02,
-    hover_target=[0.0, 0.0, 1.0]
+    ref_traj_name="fig8",
 )
 
 # 重置环境
@@ -788,7 +782,7 @@ ckptr.save("checkpoints/policy/my_policy", train_state.params)
 ckptr = PyTreeCheckpointer()
 
 # 加载策略
-policy_params = ckptr.restore("checkpoints/policy/state_hovering_params")
+policy_params = ckptr.restore("checkpoints/policy/traj_tracking_params")
 
 # 加载残差动力学集成
 residual_params = ckptr.restore("checkpoints/residual_dynamics/example_params")
@@ -814,7 +808,7 @@ tests/
 │   └── test_config_loader.py      # 配置加载器测试
 └── scripts/
     ├── test_train_residual.py      # 残差动力学训练脚本测试
-    ├── test_train_state_hovering.py # 状态悬停训练脚本测试
+    ├── test_train_traj_tracking.py # 状态悬停训练脚本测试
     └── test_train_traj_tracking.py  # 轨迹跟踪训练脚本测试
 ```
 
@@ -866,7 +860,7 @@ pytest tests/test_main.py
 | `__main__`                     | `test_main.py`                 | CLI 解析、版本、配置列表、子命令分发 |
 | `configs/loader`               | `test_config_loader.py`        | YAML 加载、验证、合并                |
 | `scripts/train_residual`       | `test_train_residual.py`       | 数据集加载、集成创建、参数解析       |
-| `scripts/train_state_hovering` | `test_train_state_hovering.py` | 配置、环境、策略、CLI、检查点        |
+| `scripts/train_traj_tracking` | `test_train_traj_tracking.py` | 配置、环境、策略、CLI、检查点        |
 | `scripts/train_traj_tracking`  | `test_train_traj_tracking.py`  | 配置、环境、策略、CLI、轨迹导出      |
 
 ---
@@ -896,9 +890,9 @@ uv run train residual \
   --output checkpoints/residual_dynamics/my_model
 
 # 3. 训练悬停策略
-uv run train hover \
-  --config configs/state_hovering.yaml \
-  --output checkpoints/policy/my_hovering_policy
+uv run train track \
+  --config configs/traj_tracking.yaml \
+  --output checkpoints/policy/my_tracking_policy
 
 # 4. 训练轨迹跟踪
 uv run train track \
@@ -1125,7 +1119,7 @@ Quadrotor（四旋翼）
 
 ```
 Env（环境基类）
-├── HoveringStateEnv（状态悬停环境）
+├── TrajTrackingStateEnv（状态悬停环境）
 └── TrajTrackingStateEnv（轨迹跟踪环境）
 ```
 
@@ -1248,13 +1242,13 @@ LoRA 就像电源适配器，将预训练模型"插到"新任务上，而不改�
 | 示例                      | 路径                                      | 说明           |
 | ------------------------- | ----------------------------------------- | -------------- |
 | 残差动力学                | examples/residual_dynamics/               | 1 个笔记本     |
-| 状态悬停                  | examples/state_hovering/                  | 4 个笔记本     |
+| 状态悬停                  | examples/traj_tracking/                  | 4 个笔记本     |
 | 轨迹跟踪                  | examples/traj_tracking/                   | 4 个笔记本     |
 ### 配置文件
 
 | 配置文件                    | 路径                           | 说明                   |
 | --------------------------- | ------------------------------ | ---------------------- |
-| 状态悬停配置                | configs/state_hovering.yaml    | 带详细注释             |
+| 状态悬停配置                | configs/traj_tracking.yaml    | 带详细注释             |
 | 轨迹跟踪配置                | configs/traj_tracking.yaml     | 轨迹跟踪训练           |
 | 残差动力学配置              | configs/residual_dynamics.yaml | 残差动力学集成训练     |
 

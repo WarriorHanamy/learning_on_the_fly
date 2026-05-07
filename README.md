@@ -7,7 +7,7 @@ Learning on the Fly (LOTF) is a JAX-based differentiable simulation library for 
 - **Differentiable physics simulation** with automatic differentiation
 - **Residual dynamics learning** to bridge sim-to-real gap
 - **BPTT (Backpropagation Through Time)** policy optimization
-- Support for state hovering, trajectory tracking, and vision-based hovering
+- Support for trajectory tracking and residual dynamics learning
 - JAX JIT compilation with GPU acceleration
 - Ensemble learning for uncertainty quantification
 
@@ -47,16 +47,11 @@ uv run train --list-configs
 uv run train residual --dataset data.csv
 uv run train residual --config configs/residual_dynamics.yaml --dataset data.csv
 
-# State-based hovering
-uv run train hover
-uv run train hover --config configs/state_hovering.yaml
-
 # Trajectory tracking
 uv run train track
 uv run train track --config configs/traj_tracking.yaml
 
 # Subcommand help
-uv run train hover --help
 uv run train track --help
 uv run train residual --help
 ```

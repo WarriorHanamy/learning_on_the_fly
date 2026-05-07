@@ -8,7 +8,6 @@ Complete guide to all configuration files and parameters in Learning on the Fly 
 - [File Locations](#file-locations)
 - [Common Parameters](#common-parameters)
 - [Task-Specific Parameters](#task-specific-parameters)
-  - [State-Based Hovering (`configs/state_hovering.yaml`)](#state-based-hovering-configsstate_hoveringyaml)
   - [Trajectory Tracking (`configs/traj_tracking.yaml`)](#trajectory-tracking-configstraj_trackingyaml)
 ### Trajectory Tracking (`configs/traj_tracking.yaml`)
 
@@ -21,7 +20,7 @@ Trains a policy to track predefined reference trajectories (figure-8, circle, st
 | `ref_traj_name` | str | "fig8" | Reference trajectory name. Options: "fig8", "circle", "star". |
 | `skip_start` | bool | true | Skip initial speedup portion of trajectory. Set to true for smoother tracking. |
 | `position_std` | float | 0.1 | Standard deviation for position noise in meters. |
-| `yaw_scale` | float | 0.1 | Scale for yaw randomization (lower than hovering for tracking stability). |
+| `yaw_scale` | float | 0.1 | Scale for yaw randomization. |
 
 **Complete Parameter List:**
 
@@ -130,59 +129,6 @@ dataset_name: example_dataset.csv
 
 ## Complete YAML Examples
 
-### State-Based Hovering (`configs/state_hovering.yaml`)
-
-```yaml
-# State-Based Hovering Training Configuration
-# Extracted from examples/state_hovering/1_train_base_policy.ipynb
-
-# Random seed for reproducibility
-seed: 0
-
-# Training parameters
-num_envs: 200
-max_epochs: 200
-
-# Simulation parameters
-sim_dt: 0.02
-max_sim_time: 3.0
-delay: 0.04
-
-# Reward parameters
-reward_sharpness: 3.0
-action_penalty_weight: 0.5
-
-# Hover target position [x, y, z]
-hover_target:
-  - 1.5
-  - 0.0
-  - 1.5
-
-# Simulation dynamics config
-sim_dyn_config:
-  use_high_fidelity: false
-  use_forward_residual: false
-
-# Environment noise parameters
-yaw_scale: 1.0
-pitch_roll_scale: 0.1
-velocity_std: 0.1
-omega_std: 0.1
-margin: 0.5
-
-# Policy network architecture
-policy_net:
-  hidden_layers:
-    - 512
-    - 512
-  initial_scale: 0.01
-
-# Optimizer settings
-optimizer:
-  initial_lr: 0.005
-  scheduler: cosine_decay
-```
-
 ### Trajectory Tracking (`configs/traj_tracking.yaml`)
 
 ```yaml
@@ -271,7 +217,7 @@ This section provides guidance on tuning the most important parameters for diffe
 
 | Task | Recommended Range | Notes |
 |------|-------------------|-------|
-| State Hovering | 100-300 | Default 200 is good balance |
+
 | Trajectory Tracking | 200-500 | Default 300 for stable tracking |
 | Residual Dynamics | N/A | Controlled by `batch_size` instead |
 
@@ -298,7 +244,7 @@ GPU Memory (GB) ≈ num_envs * 0.01 GB (rough estimate for state tasks)
 
 | Task | Recommended Range | Notes |
 |------|-------------------|-------|
-| State Hovering | 100-300 | Default 200 typically sufficient |
+
 | Trajectory Tracking | 200-500 | Default 300 for complex trajectories |
 | Residual Dynamics | 50-200 | Default 100 for ensemble |
 
@@ -325,7 +271,7 @@ The training scripts automatically detect convergence and may stop before `max_e
 
 | Task | Recommended Range | Default | Notes |
 |------|-------------------|---------|-------|
-| State Hovering | 0.001-0.01 | 0.005 | Moderate learning rate works well |
+
 | Trajectory Tracking | 0.0005-0.002 | 0.001 | Lower for stable tracking |
 | Residual Dynamics | 0.005-0.02 | 0.01 | Supervised learning tolerates higher rates |
 
@@ -370,7 +316,7 @@ This provides:
 
 | Task | Recommended Architecture | Default | Notes |
 |------|-------------------------|---------|-------|
-| State Hovering | [256, 256] or [512, 512] | [512, 512] | 2 layers sufficient |
+
 | Trajectory Tracking | [256, 256] or [512, 512] | [512, 512] | 2 layers sufficient |
 | Residual Dynamics | N/A | N/A | Fixed architecture in code |
 
@@ -427,7 +373,7 @@ The relationship between network size and training data (controlled by `num_envs
 
 ### 5. Task-Specific Tuning Tips
 
-#### State-Based Hovering
+#### Trajectory Tracking
 
 **Reward Sharpness (`reward_sharpness`):**
 - Default: 3.0
@@ -521,7 +467,7 @@ The relationship between network size and training data (controlled by `num_envs
   - Increase network capacity (larger `hidden_layers`)
   - Reduce `action_penalty_weight`
   - Check simulation parameters are reasonable
-  - Verify target is reachable (check `hover_target`)
+  - Verify trajectory configuration is valid
 
 **Issue: Overfitting**
 - Solutions:
@@ -541,10 +487,10 @@ Before starting full training, it's recommended to validate your configuration f
 Check that your YAML files are syntactically correct:
 
 ```bash
-# Validate state hovering configuration
+# Validate trajectory tracking configuration
 uv run python -c "
 import yaml
-with open('configs/state_hovering.yaml', 'r') as f:
+with open('configs/traj_tracking.yaml', 'r') as f:
     config = yaml.safe_load(f)
     print('Configuration loaded successfully!')
     print(f'Number of environments: {config.get(\"num_envs\")}')
@@ -581,23 +527,23 @@ with open('configs/residual_dynamics.yaml', 'r') as f:
 Run a short test training to verify configuration parameters work correctly:
 
 ```bash
-# Test state hovering config with reduced epochs
+# Test trajectory tracking config with reduced epochs
 uv run python -c "
 import yaml
-with open('configs/state_hovering.yaml', 'r') as f:
+with open('configs/traj_tracking.yaml', 'r') as f:
     config = yaml.safe_load(f)
     # Reduce epochs for quick test
     config['max_epochs'] = 2
     config['num_envs'] = 10
-with open('configs/state_hovering_test.yaml', 'w') as f:
+with open('configs/configs/traj_tracking_test.yaml', 'w') as f:
     yaml.dump(config, f)
-print('Test configuration created: configs/state_hovering_test.yaml')
+print('Test configuration created: configs/configs/traj_tracking_test.yaml')
 "
 ```
 
 ```bash
 # Run quick test with modified config
-uv run train hover --config configs/state_hovering_test.yaml
+uv run train track --config configs/configs/traj_tracking_test.yaml
 ```
 
 ### Checking Configuration Parameter Types
@@ -605,7 +551,7 @@ uv run train hover --config configs/state_hovering_test.yaml
 Verify that all configuration parameters have the correct data types:
 
 ```bash
-# Validate parameter types for state hovering
+# Validate parameter types for trajectory tracking
 uv run python -c "
 import yaml
 from typing import get_type_hints
@@ -617,12 +563,9 @@ expected_types = {
     'sim_dt': float,
     'max_sim_time': float,
     'delay': float,
-    'reward_sharpness': float,
-    'action_penalty_weight': float,
-    'hover_target': list,
 }
 
-with open('configs/state_hovering.yaml', 'r') as f:
+with open('configs/traj_tracking.yaml', 'r') as f:
     config = yaml.safe_load(f)
 
 print('Validating parameter types:')
@@ -683,11 +626,11 @@ else:
 Perform a quick sanity check on configuration values:
 
 ```bash
-# Sanity check for state hovering config
+# Sanity check for trajectory tracking config
 uv run python -c "
 import yaml
 
-with open('configs/state_hovering.yaml', 'r') as f:
+with open('configs/traj_tracking.yaml', 'r') as f:
     config = yaml.safe_load(f)
 
 print('Configuration sanity check:')
@@ -732,10 +675,10 @@ Compare two configuration files to identify differences:
 uv run python -c "
 import yaml
 
-with open('configs/state_hovering.yaml', 'r') as f:
+with open('configs/traj_tracking.yaml', 'r') as f:
     default_config = yaml.safe_load(f)
 
-with open('configs/state_hovering_custom.yaml', 'r') as f:
+with open('configs/traj_tracking_custom.yaml', 'r') as f:
     custom_config = yaml.safe_load(f)
 
 print('Comparing configurations:')
@@ -780,7 +723,7 @@ def validate_config(config_path):
         return False
 
 configs = [
-    'configs/state_hovering.yaml',
+    'configs/traj_tracking.yaml',
     'configs/traj_tracking.yaml',
     'configs/residual_dynamics.yaml',
 ]
@@ -812,7 +755,7 @@ else:
 
 1. **Always use version control** for your config files
 2. **Document changes** with comments in YAML files
-3. **Save successful configs** with descriptive names (e.g., `state_hovering_best.yaml`)
+3. **Save successful configs** with descriptive names (e.g., `traj_tracking_best.yaml`)
 4. **Use config inheritance** by creating base configs and task-specific overrides
 5. **Validate configs** using `uv run python` before full training (see [Configuration Validation](#configuration-validation))
 6. **Monitor GPU memory** usage when scaling up `num_envs`
@@ -825,13 +768,13 @@ else:
 
 ```bash
 # Quick config validation
-uv run python -c "import yaml; yaml.safe_load(open('configs/state_hovering.yaml')); print('Config valid!')"
+uv run python -c "import yaml; yaml.safe_load(open('configs/traj_tracking.yaml')); print('Config valid!')"
 
 # Test config with reduced parameters
-uv run train hover --config configs/state_hovering.yaml --output checkpoints/test
+uv run train track --config configs/traj_tracking.yaml --output checkpoints/test
 
 # Compare configs
-uv run python -c "import yaml; print(yaml.safe_load(open('configs/state_hovering.yaml')))"
+uv run python -c "import yaml; print(yaml.safe_load(open('configs/traj_tracking.yaml')))"
 ```
 
 See [Configuration Validation](#configuration-validation) for detailed examples.

@@ -50,7 +50,7 @@ All commands use `uv run`, which automatically manages the virtual environment:
 uv run python --version
 
 # Run training via CLI
-uv run train hover --config configs/state_hovering.yaml
+uv run train track --config configs/traj_tracking.yaml
 
 # Run tests
 uv run pytest
@@ -292,7 +292,7 @@ uv run train --list-configs
     ```bash
     # Run training on CPU if GPU issues persist
     export JAX_PLATFORMS=cpu
-    uv run train hover
+    uv run train track
     ```
 
 ### Import Errors
