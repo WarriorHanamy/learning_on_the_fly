@@ -17,10 +17,10 @@ delay: 0.04
 ref_traj_name: fig8
 skip_start: true
 
-# Simulation dynamics config
-sim_dyn_config:
-  use_high_fidelity: false
-  use_forward_residual: false
+# Forward model config
+forward_model_config:
+  enable_inner_loop_dynamics: false
+  enable_residual_acceleration: false
 
 # Environment noise parameters
 yaw_scale: 0.1

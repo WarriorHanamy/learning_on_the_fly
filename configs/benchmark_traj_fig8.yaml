@@ -1,0 +1,28 @@
+# Benchmark configuration for trajectory tracking (FIG8)
+# The forward model is fixed by the evaluation runner and not configurable.
+# Only the policy checkpoint varies across benchmarks.
+
+task: traj_tracking
+ref_traj_name: fig8
+
+env:
+  sim_dt: 0.02
+  delay: 0.04
+  max_sim_time: 10.0
+  skip_start: true
+  # noise zeroed for deterministic evaluation
+  yaw_scale: 0.0
+  pitch_roll_scale: 0.0
+  position_std: 0.0
+  velocity_std: 0.0
+  omega_std: 0.0
+
+policy_net:
+  hidden_layers:
+    - 512
+    - 512
+  initial_scale: 0.01
+
+benchmark:
+  num_rollouts: 20
+  seed: 0

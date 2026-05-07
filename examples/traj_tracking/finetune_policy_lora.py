@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Converted from 3_finetune_policy_lora.ipynb."""
+
 import matplotlib
 
 import os
+
 os.environ.setdefault("JAX_PLATFORM_NAME", "cpu")
 matplotlib.use("TkAgg")  # Use interactive backend when available
 
@@ -26,7 +28,7 @@ from lotf.utils.lora import (
     recursive_merge,
 )
 
-"""(LoRA) Finetuning a Trained State-Based Hovering Policy With BPTT"""
+"""(LoRA) Finetuning a Trained Trajectory Tracking Policy With BPTT"""
 
 # ======================================================================
 #  1. Seed
@@ -40,10 +42,10 @@ key_init, key_bptt = jax.random.split(key, 2)
 #  2. Define Simulation Dynamics Config and Training Params
 # ======================================================================
 
-# simulation dynamics config
-sim_dyn_config = {
-    "use_high_fidelity": False,          # whether to use high-fidelity dynamics in forward simulation
-    "use_forward_residual": False,       # whether to use residual dynamics in forward simulation
+# forward model config
+forward_model_config = {
+    "enable_inner_loop_dynamics": False,
+    "enable_residual_acceleration": False,
 }
 
 # training parameters
@@ -62,7 +64,7 @@ max_sim_time = 5.0
 ref_traj_name = RefTrajNames.FIG8
 
 # quadrotor object
-quad_obj = Quadrotor.from_name("example_quad", sim_dyn_config)
+quad_obj = Quadrotor.from_name("example_quad", forward_model_config)
 
 # simulation environment
 env = TrajTrackingStateEnv(
@@ -122,15 +124,16 @@ policy_params = policy_net.initialize_with_base(key_init, base_policy_params)
 
 mask = lora_only_mask(policy_params)
 frozen_params, trainable_params = partition_params(policy_params, mask)
+
+
 def apply_combined(params, x):
     full_params = freeze(recursive_merge(unfreeze(frozen_params), unfreeze(params)))
     return policy_net.apply(full_params, x)
 
+
 # optimizer and train state
 tx = optax.adam(learning_rate=1e-3)
-train_state = TrainState.create(
-    apply_fn=apply_combined, params=trainable_params, tx=tx
-)
+train_state = TrainState.create(apply_fn=apply_combined, params=trainable_params, tx=tx)
 
 # ======================================================================
 #  5. Load Residual Dynamics Network Parameters
@@ -166,4 +169,3 @@ res_dict = bptt.train(
 )
 time_train_compile = time.time() - time_start
 print(f"Compile + Training time: {time_train_compile}")
-

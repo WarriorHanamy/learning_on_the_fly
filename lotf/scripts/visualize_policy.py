@@ -13,83 +13,33 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from pathlib import Path
-from typing import Optional
 
 import jax
-import jax.numpy as jnp
 import numpy as np
-import optax
-import yaml
 from flax.core import FrozenDict
-from flax.training.train_state import TrainState
 from orbax.checkpoint import PyTreeCheckpointer
 from scipy.spatial.transform import Rotation
 
-from lotf import LOTF_ROOT, resolve_path
+from lotf import LOTF_ROOT
 from lotf.envs.env_base import rollout
-from lotf.envs.traj_tracking_state_env import TrajTrackingStateEnv
-from lotf.envs.wrappers import MinMaxObservationWrapper
-from lotf.modules.mlp import MLP
-from lotf.objects.quadrotor_obj import Quadrotor
+from lotf.traj_tracking_setup import (
+    TrajTrackingConfig,
+    build_traj_tracking_env,
+    load_policy_fn,
+)
 
 
-def load_policy_and_env(checkpoint_path: str, config: dict, env_type: str):
+def load_policy_and_env(checkpoint_path: str, config: TrajTrackingConfig):
     """Load a trained policy checkpoint and recreate its environment."""
-    sim_dyn_config = {
-        "use_high_fidelity": config.get("sim_dyn_config", {}).get("use_high_fidelity", False),
-        "use_forward_residual": config.get("sim_dyn_config", {}).get("use_forward_residual", False),
-    }
-    sim_dt = config.get("sim_dt", 0.02)
-    max_sim_time = config.get("max_sim_time", 5.0)
-    delay = config.get("delay", 0.04)
+    env = build_traj_tracking_env(config, with_log_wrapper=False, with_vec_wrapper=False)
 
-    quad_obj = Quadrotor.from_name("example_quad", sim_dyn_config)
+    policy_fn = load_policy_fn(checkpoint_path, config, env)
 
-    if env_type == "track":
-        ref_traj_name = config.get("ref_traj_name", "fig8")
-        skip_start = config.get("skip_start", True)
-        env = TrajTrackingStateEnv(
-            max_steps_in_episode=int(max_sim_time / sim_dt),
-            dt=sim_dt,
-            delay=delay,
-            quad_obj=quad_obj,
-            ref_traj_name=ref_traj_name,
-            skip_start=skip_start,
-        )
-    else:
-        raise ValueError(f"Unknown env_type: {env_type}")
-
-    env = MinMaxObservationWrapper(env)
-    action_dim = env.action_space.shape[0]
-    obs_dim = env.observation_space.shape[0]
-
-    hidden_layers = config.get("policy_net", {}).get("hidden_layers", [512, 512])
-    initial_scale = config.get("policy_net", {}).get("initial_scale", 0.01)
-    policy_net = MLP(
-        [obs_dim, *hidden_layers, action_dim],
-        action_bias=getattr(env, "hovering_action", None),
-        initial_scale=initial_scale,
-    )
-
-    ckptr = PyTreeCheckpointer()
-    ckpt_path = resolve_path(checkpoint_path)
-    if not Path(ckpt_path).exists():
-        raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
-    policy_params = ckptr.restore(str(ckpt_path))
-
-    train_state = TrainState.create(
-        apply_fn=policy_net.apply,
-        params=policy_params,
-        tx=optax.adam(1e-3),
-    )
-
-    def policy_fn(obs, key):
-        return train_state.apply_fn(train_state.params, obs)
-
+    # load residual params (silently fall back to empty dict if dummy_params missing)
     residual_path = LOTF_ROOT / "checkpoints" / "residual_dynamics" / "dummy_params"
+
     if residual_path.exists():
-        residual_params = ckptr.restore(str(residual_path))
+        residual_params = PyTreeCheckpointer().restore(str(residual_path))
     else:
         residual_params = FrozenDict({})
 
@@ -370,9 +320,8 @@ Examples:
 
     args = parser.parse_args()
 
-    config_path = args.config or f"configs/traj_tracking.yaml"
-    with open(resolve_path(config_path)) as f:
-        config = yaml.safe_load(f)
+    config_path = args.config or "configs/traj_tracking.yaml"
+    config = TrajTrackingConfig.from_yaml(config_path)
 
     checkpoint = args.checkpoint
     if checkpoint is None:
@@ -389,7 +338,7 @@ Examples:
         print(f"Auto-detected checkpoint: {checkpoint}")
 
     print(f"Loading policy from: {checkpoint}")
-    policy_fn, env, residual_params = load_policy_and_env(checkpoint, config, args.env_type)
+    policy_fn, env, residual_params = load_policy_and_env(checkpoint, config)
 
     print("Running rollout...")
     positions, velocities, eulers, dt, ref_positions = run_rollout(

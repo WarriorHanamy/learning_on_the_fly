@@ -5,9 +5,9 @@ Learning on the Fly (LOTF) is a JAX-based differentiable simulation library for 
 ## Key Features
 
 - **Differentiable physics simulation** with automatic differentiation
-- **Residual dynamics learning** to bridge sim-to-real gap
+- **Residual acceleration learning** to bridge sim-to-real gap
 - **BPTT (Backpropagation Through Time)** policy optimization
-- Support for trajectory tracking and residual dynamics learning
+- Trajectory tracking and residual dynamics training
 - JAX JIT compilation with GPU acceleration
 - Ensemble learning for uncertainty quantification
 
@@ -61,14 +61,15 @@ uv run train residual --help
 ```
 lotf/
 ├── algos/          # BPTT algorithm with differentiable simulation
-├── configs/        # YAML configuration loader
 ├── envs/           # Simulation environments
+├── eval/           # Benchmark evaluation runner
 ├── modules/        # MLP networks (policy, residual dynamics, LoRA)
 ├── objects/        # Quadrotor, reference trajectory, world box
-├── scripts/        # Training scripts (CLI entry points)
-├── sensors/        # Double sphere camera model
-├── simulation/     # High-fidelity quadrotor dynamics
+├── scripts/        # Training and evaluation scripts (CLI entry points)
+├── simulation/     # Quadrotor rotor dynamics augmentation
 ├── utils/          # Utility functions
+├── forward_model_config.py     # Forward model fidelity config
+├── traj_tracking_setup.py      # Shared trajectory tracking builders
 ├── __init__.py     # Package init (LOTF_ROOT, resolve_path)
-└── __main__.py     # CLI entry point (uv run train)
+└── __main__.py     # CLI entry points (train, play, eval)
 ```

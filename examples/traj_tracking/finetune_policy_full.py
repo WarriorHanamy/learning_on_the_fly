@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Converted from 3_finetune_policy_full.ipynb."""
+
 import matplotlib
 
 import os
+
 os.environ.setdefault("JAX_PLATFORM_NAME", "cpu")
 matplotlib.use("TkAgg")  # Use interactive backend when available
 
@@ -20,7 +22,7 @@ from lotf.envs.wrappers import LogWrapper, MinMaxObservationWrapper, VecEnv
 from lotf.modules import MLP
 from lotf.objects import Quadrotor, RefTrajNames
 
-"""Finetuning a Trained State-Based Hovering Policy With BPTT"""
+"""Finetuning a Trained Trajectory Tracking Policy With BPTT"""
 
 # ======================================================================
 #  1. Seed
@@ -34,10 +36,10 @@ key_init, key_bptt = jax.random.split(key, 2)
 #  2. Define Simulation Dynamics Config and Training Params
 # ======================================================================
 
-# simulation dynamics config
-sim_dyn_config = {
-    "use_high_fidelity": False,          # whether to use high-fidelity dynamics in forward simulation
-    "use_forward_residual": False,       # whether to use residual dynamics in forward simulation
+# forward model config
+forward_model_config = {
+    "enable_inner_loop_dynamics": False,
+    "enable_residual_acceleration": False,
 }
 
 # training parameters
@@ -56,7 +58,7 @@ max_sim_time = 5.0
 ref_traj_name = RefTrajNames.FIG8
 
 # quadrotor object
-quad_obj = Quadrotor.from_name("example_quad", sim_dyn_config)
+quad_obj = Quadrotor.from_name("example_quad", forward_model_config)
 
 # simulation environment
 env = TrajTrackingStateEnv(
@@ -108,9 +110,7 @@ scheduler = optax.cosine_decay_schedule(1e-3, max_epochs)
 tx = optax.adam(scheduler)
 
 # train state object
-train_state = TrainState.create(
-    apply_fn=policy_net.apply, params=policy_params, tx=tx
-)
+train_state = TrainState.create(apply_fn=policy_net.apply, params=policy_params, tx=tx)
 
 # ======================================================================
 #  5. Load Residual Dynamics Network Parameters
@@ -146,4 +146,3 @@ res_dict = bptt.train(
 )
 time_train_compile = time.time() - time_start
 print(f"Compile + Training time: {time_train_compile}")
-

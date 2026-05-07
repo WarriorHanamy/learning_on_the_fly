@@ -34,6 +34,7 @@ dependencies = [
 [project.scripts]
 train = "lotf.__main__:main"
 play = "lotf.__main__:main_play"
+eval = "lotf.__main__:main_eval"
 
 [project.optional-dependencies]
 cuda12 = ["jax[cuda12]>=0.4.30"]

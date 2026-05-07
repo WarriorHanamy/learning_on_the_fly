@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Converted from 2_eval_policy.ipynb."""
+
 import matplotlib
 
 import os
+
 os.environ.setdefault("JAX_PLATFORM_NAME", "cpu")
 matplotlib.use("TkAgg")  # Use interactive backend when available
 
@@ -31,13 +33,13 @@ key_init, key_bptt = jax.random.split(key, 2)
 #  2. Define Simulation Dynamics Config
 # ======================================================================
 
-# simulation dynamics config
-sim_dyn_config = {
-    "use_high_fidelity": False,          # whether to use high-fidelity dynamics in forward simulation
-    "use_forward_residual": False,       # whether to use residual dynamics in forward simulation
+# forward model config
+forward_model_config = {
+    "enable_inner_loop_dynamics": False,
+    "enable_residual_acceleration": False,
 }
 
-# NOTE: To evaluate under residual dynamics, simply set "forward_residual" to True in the config above
+# NOTE: To evaluate under residual acceleration, set "enable_residual_acceleration" to True above
 path = LOTF_PATH + "/../checkpoints/residual_dynamics/dummy_params"
 ckptr = PyTreeCheckpointer()
 dummy_residual_params = ckptr.restore(path)
@@ -54,7 +56,7 @@ max_sim_time = 10.0
 ref_traj_name = RefTrajNames.FIG8
 
 # quadrotor object
-quad_obj = Quadrotor.from_name("example_quad", sim_dyn_config)
+quad_obj = Quadrotor.from_name("example_quad", forward_model_config)
 
 eval_env = TrajTrackingStateEnv(
     max_steps_in_episode=int(max_sim_time / sim_dt),
@@ -94,15 +96,20 @@ base_policy_net = MLP(
 path = LOTF_PATH + "/../checkpoints/policy/" + policy_name
 ckptr = PyTreeCheckpointer()
 base_policy_params = ckptr.restore(path)
-loaded_train_state = TrainState.create(apply_fn=base_policy_net.apply, params=base_policy_params, tx=optax.adam(1e-3))
+loaded_train_state = TrainState.create(
+    apply_fn=base_policy_net.apply, params=base_policy_params, tx=optax.adam(1e-3)
+)
+
 
 # define policy function
 def policy_trained(obs, key):
     return loaded_train_state.apply_fn(loaded_train_state.params, obs)
 
+
 # ======================================================================
 #  5. Rollout the Policy and Plot Results
 # ======================================================================
+
 
 def get_rollouts(env, policy, num_rollouts, key):
     parallel_rollout = jax.vmap(rollout, in_axes=(None, 0, None, None))
@@ -110,6 +117,6 @@ def get_rollouts(env, policy, num_rollouts, key):
     transitions = parallel_rollout(env, rollout_keys, policy, dummy_residual_params)
     return transitions
 
+
 transitions_eval = get_rollouts(eval_env, policy_trained, 1, jax.random.key(0))
 eval_env.plot_trajectories(transitions_eval)
-

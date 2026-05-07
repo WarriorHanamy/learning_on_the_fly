@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Converted from 1_train_base_policy.ipynb."""
+
 import matplotlib
 
 import os
+
 os.environ.setdefault("JAX_PLATFORM_NAME", "cpu")
 matplotlib.use("TkAgg")  # Use interactive backend when available
 
@@ -36,10 +38,10 @@ key_init, key_bptt = jax.random.split(key, 2)
 #  2. Define Simulation Dynamics Config and Training Params
 # ======================================================================
 
-# simulation dynamics config
-sim_dyn_config = {
-    "use_high_fidelity": False,          # whether to use high-fidelity dynamics in forward simulation
-    "use_forward_residual": False,       # whether to use residual dynamics in forward simulation
+# forward model config
+forward_model_config = {
+    "enable_inner_loop_dynamics": False,
+    "enable_residual_acceleration": False,
 }
 
 # training parameters
@@ -58,7 +60,7 @@ max_sim_time = 5.0
 ref_traj_name = RefTrajNames.FIG8
 
 # quadrotor object
-quad_obj = Quadrotor.from_name("example_quad", sim_dyn_config)
+quad_obj = Quadrotor.from_name("example_quad", forward_model_config)
 
 # simulation environment
 env = TrajTrackingStateEnv(
@@ -107,9 +109,7 @@ scheduler = optax.cosine_decay_schedule(1e-3, max_epochs)
 tx = optax.adam(scheduler)
 
 # train state object
-train_state = TrainState.create(
-    apply_fn=policy_net.apply, params=policy_params, tx=tx
-)
+train_state = TrainState.create(apply_fn=policy_net.apply, params=policy_params, tx=tx)
 
 # ======================================================================
 #  5. Load Dummy Residual Dynamics Network Parameters
@@ -151,19 +151,23 @@ print(f"Compile + Training time: {time_train_compile}")
 #  7. Plot Rewards
 # ======================================================================
 
-losses = res_dict['metrics']
+losses = res_dict["metrics"]
 returns = -losses
 
 sns.set_theme(style="whitegrid")
 plt.figure(figsize=(6, 5))
-plt.plot(returns, color='#2c3e50', linewidth=2)
-plt.title(f"Final Reward: {returns[-1]:.2f} | Total Runtime: {time_train_compile:.2f}s",
-          fontsize=14, fontweight='bold', pad=15)
+plt.plot(returns, color="#2c3e50", linewidth=2)
+plt.title(
+    f"Final Reward: {returns[-1]:.2f} | Total Runtime: {time_train_compile:.2f}s",
+    fontsize=14,
+    fontweight="bold",
+    pad=15,
+)
 plt.xlabel("Epoch", fontsize=12)
 plt.ylabel("Reward", fontsize=12)
 plt.tight_layout()
 sns.despine()
-plt.savefig('/tmp/plot.png')
+plt.savefig("/tmp/plot.png")
 plt.show()
 
 # ======================================================================
@@ -177,4 +181,3 @@ ckptr = PyTreeCheckpointer()
 trained_policy_params = res_dict["runner_state"].train_state.params
 ckptr.save(path, trained_policy_params)
 print("Policy saved successfully!")
-

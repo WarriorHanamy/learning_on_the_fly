@@ -278,5 +278,20 @@ def main_play(argv: Sequence[str] | None = None) -> int:
     return _run_with_argv(play_policy, play_argv)
 
 
+def main_eval(argv: Sequence[str] | None = None) -> int:
+    """Entry point for the `eval` command — trajectory tracking benchmark.
+
+    Args:
+        argv: Command-line arguments (defaults to sys.argv[1:]).
+
+    Returns:
+        Exit code (0 for success, non-zero for errors).
+    """
+    from lotf.scripts.evaluate_policy import main as eval_policy
+
+    eval_argv = ["eval"] + (list(argv) if argv else sys.argv[1:])
+    return _run_with_argv(eval_policy, eval_argv)
+
+
 if __name__ == "__main__":
     sys.exit(main())

@@ -224,10 +224,10 @@ delay: 0.04                # Action delay (seconds)
 ref_traj_name: fig8         # Trajectory name: circle, fig8, star
 skip_start: true           # Skip initial speedup portion
 
-# Simulation dynamics config
-sim_dyn_config:
-  use_high_fidelity: false   # Use high-fidelity dynamics
-  use_forward_residual: false # Use residual dynamics in forward sim
+# Forward model config
+forward_model_config:
+  enable_inner_loop_dynamics: false   # Enable inner-loop dynamics (LLC + motor lag)
+  enable_residual_acceleration: false # Enable learned residual acceleration
 
 # Environment noise parameters
 yaw_scale: 0.1             # Yaw randomization scale
@@ -320,10 +320,10 @@ path = LOTF_PATH + "/../checkpoints/residual_dynamics/residual_params"
 ckptr = PyTreeCheckpointer()
 residual_params = ckptr.restore(path)
 
-# Use in simulation with high-fidelity dynamics
-sim_dyn_config = {
-    "use_high_fidelity": True,
-    "use_forward_residual": True,  # Use learned residuals
+# Use in simulation with residual acceleration and inner-loop dynamics
+forward_model_config = {
+    "enable_inner_loop_dynamics": True,
+    "enable_residual_acceleration": True,  # Use learned residual acceleration
 }
 ```
 
@@ -341,11 +341,11 @@ from lotf.objects import Quadrotor, RefTrajNames
 from orbax.checkpoint import PyTreeCheckpointer
 
 # Create environment
-sim_dyn_config = {
-    "use_high_fidelity": False,
-    "use_forward_residual": False,
+forward_model_config = {
+    "enable_inner_loop_dynamics": False,
+    "enable_residual_acceleration": False,
 }
-quad_obj = Quadrotor.from_name("example_quad", sim_dyn_config)
+quad_obj = Quadrotor.from_name("example_quad", forward_model_config)
 
 eval_env = TrajTrackingStateEnv(
     max_steps_in_episode=int(10.0 / 0.02),
@@ -512,7 +512,7 @@ If you encounter CUDA out of memory errors:
 - Increase `max_epochs` to 500+
 - Tune learning rate: try 0.001, 0.0005, 0.0001
 - Adjust reward parameters: `reward_sharpness`, `action_penalty_weight`
-- Enable high-fidelity or residual dynamics in `sim_dyn_config`
+- Enable residual acceleration or inner-loop dynamics in `forward_model_config`
 
 #### 4. Checkpoint Loading Errors
 

@@ -13,7 +13,14 @@ from jax import numpy as jnp
 from jax.scipy.spatial.transform import Rotation
 from flax.core import FrozenDict
 
-from lotf.objects import Quadrotor, QuadrotorState, WorldBox, ReferenceTraj, RefTrajNames, TrajColumns
+from lotf.objects import (
+    Quadrotor,
+    QuadrotorState,
+    WorldBox,
+    ReferenceTraj,
+    RefTrajNames,
+    TrajColumns,
+)
 from lotf.utils import math as math_utils
 from lotf.utils import spaces
 from lotf.utils.pytrees import pytree_get_item, stack_pytrees
@@ -27,7 +34,7 @@ from lotf.envs.env_base import EnvTransition
 class EnvState(env_base.EnvState):
     """
     State representation for the trajectory tracking environment.
-    
+
     Attributes:
         time: elapsed simulation time.
         step_idx: current step count in the episode.
@@ -36,6 +43,7 @@ class EnvState(env_base.EnvState):
         last_quadrotor_states: history of previous physical states.
         init_ref_traj_idx: starting index on the reference trajectory.
     """
+
     time: float
     step_idx: int
     quadrotor_state: QuadrotorState
@@ -66,12 +74,10 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
         train_from_start=False,
     ):
         """Initialize the trajectory tracking environment."""
-        self.world_box = WorldBox(
-            jnp.array([-5.0, -5.0, 0.0]), jnp.array([5.0, 5.0, 3.0])
-        )
+        self.world_box = WorldBox(jnp.array([-5.0, -5.0, 0.0]), jnp.array([5.0, 5.0, 3.0]))
         self.max_steps_in_episode = max_steps_in_episode
         self.dt = np.array(dt)
-        
+
         # noise parameters for initialization
         self.yaw_scale = yaw_scale
         self.pitch_roll_scale = pitch_roll_scale
@@ -83,7 +89,7 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
         if quad_obj is not None:
             self.quadrotor = quad_obj
         else:
-            self.quadrotor = Quadrotor.default_quadrotor()
+            self.quadrotor = Quadrotor.example_quadrotor()
 
         self.omega_min = self.quadrotor._omega_max * -1
         self.omega_max = self.quadrotor._omega_max
@@ -124,9 +130,9 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
             self.position_std = 0.01
             self.velocity_std = 0.01
             self.omega_std = 0.01
-        
+
         if skip_start:
-            self.min_init_ref_traj_idx = 50 * 3     # skip first 3 seconds of speedup
+            self.min_init_ref_traj_idx = 50 * 3  # skip first 3 seconds of speedup
 
         if train_from_start:
             self.max_init_ref_traj_idx = 1
@@ -137,9 +143,7 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
             self.omega_std = 0.05
 
     @partial(jax.jit, static_argnums=(0,))
-    def reset(
-        self, key, state: Optional[EnvState] = None
-    ) -> tuple[EnvState, jax.Array]:
+    def reset(self, key, state: Optional[EnvState] = None) -> tuple[EnvState, jax.Array]:
         """Resets the environment to a sampled state on the reference trajectory."""
         key_p, key_R, key_v, key_omega, key_dr = jax.random.split(key, 5)
 
@@ -178,9 +182,7 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
         omega = jnp.clip(omega, self.omega_min, self.omega_max)
 
         # build initial states
-        quadrotor_state = self.quadrotor.create_state(
-            p=p, R=R, v=v, omega=omega, dr_key=key_dr
-        )
+        quadrotor_state = self.quadrotor.create_state(p=p, R=R, v=v, omega=omega, dr_key=key_dr)
         last_actions = jnp.tile(self.hovering_action, (self.num_last_actions, 1))
         last_quadrotor_states = stack_pytrees([quadrotor_state] * self.num_last_quad_states)
 
@@ -249,9 +251,7 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
 
         return EnvTransition(next_state, obs, reward, terminated, truncated, dict())
 
-    def _get_reward(
-        self, last_state: EnvState, next_state: EnvState
-    ) -> jax.Array:
+    def _get_reward(self, last_state: EnvState, next_state: EnvState) -> jax.Array:
         """Calculates tracking reward based on proximity to reference."""
         pos = next_state.quadrotor_state.p
         vel = next_state.quadrotor_state.v
@@ -260,9 +260,9 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
         # determine target point index
         target_idx = next_state.init_ref_traj_idx + next_state.step_idx
         target_idx = jax.lax.select(
-            pred = target_idx >= self.num_ref_traj_points,
-            on_true = self.num_ref_traj_points - 1,     # stay at end of trajectory
-            on_false = target_idx
+            pred=target_idx >= self.num_ref_traj_points,
+            on_true=self.num_ref_traj_points - 1,  # stay at end of trajectory
+            on_false=target_idx,
         )
 
         # get target values
@@ -279,9 +279,7 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
 
         # handle collision penalties
         time_left = self.max_steps_in_episode - next_state.step_idx
-        collision_cost = jax.lax.select(
-            self._is_colliding(next_state), time_left * cost, 0.0
-        )
+        collision_cost = jax.lax.select(self._is_colliding(next_state), time_left * cost, 0.0)
         cost += jax.lax.stop_gradient(collision_cost)
 
         return -self.dt * cost
@@ -305,8 +303,12 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
         action_low_repeated = jnp.concatenate([self.action_space.low] * n)
 
         return spaces.Box(
-            low=jnp.concatenate([self.world_box.min, -jnp.ones(9), self.v_min, action_low_repeated]),
-            high=jnp.concatenate([self.world_box.max, jnp.ones(9), self.v_max, action_high_repeated]),
+            low=jnp.concatenate(
+                [self.world_box.min, -jnp.ones(9), self.v_min, action_low_repeated]
+            ),
+            high=jnp.concatenate(
+                [self.world_box.max, jnp.ones(9), self.v_max, action_high_repeated]
+            ),
             shape=(15 + n * 4,),
         )
 
@@ -331,22 +333,27 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
             fieldnames = ["index", "t", "px", "py", "pz", "qw", "qx", "qy", "qz", "vx", "vy", "vz"]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
-            
+
             rows = []
             for i in range(traj_length):
                 transition = pytree_get_item(traj, i)
                 quat = rot_to_quat(Rotation.from_matrix(transition.state.quadrotor_state.R))
-                rows.append({
-                    "index": i,
-                    "t": transition.state.time,
-                    "px": transition.state.quadrotor_state.p[0],
-                    "py": transition.state.quadrotor_state.p[1],
-                    "pz": transition.state.quadrotor_state.p[2],
-                    "qw": quat[0], "qx": quat[1], "qy": quat[2], "qz": quat[3],
-                    "vx": transition.state.quadrotor_state.v[0],
-                    "vy": transition.state.quadrotor_state.v[1],
-                    "vz": transition.state.quadrotor_state.v[2],
-                })
+                rows.append(
+                    {
+                        "index": i,
+                        "t": transition.state.time,
+                        "px": transition.state.quadrotor_state.p[0],
+                        "py": transition.state.quadrotor_state.p[1],
+                        "pz": transition.state.quadrotor_state.p[2],
+                        "qw": quat[0],
+                        "qx": quat[1],
+                        "qy": quat[2],
+                        "qz": quat[3],
+                        "vx": transition.state.quadrotor_state.v[0],
+                        "vy": transition.state.quadrotor_state.v[1],
+                        "vz": transition.state.quadrotor_state.v[2],
+                    }
+                )
             writer.writerows(rows)
 
     def plot_trajectories(self, traj: EnvTransition, vertical_plane: bool = False, save_path=None):
@@ -360,20 +367,26 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
         fig, ax1 = plt.subplots(figsize=(10, 5))
 
         # Palette matching previous plots
-        ref_color = '#e67e22'   # Soft orange for reference
-        traj_color = '#2c3e50'  # Dark slate for actual path
-        arrow_color = '#3498db' # Light blue for orientation
-        start_color = '#27ae60' # Emerald green
-        end_color = '#e74c3c'   # Alizarin red
+        ref_color = "#e67e22"  # Soft orange for reference
+        traj_color = "#2c3e50"  # Dark slate for actual path
+        arrow_color = "#3498db"  # Light blue for orientation
+        start_color = "#27ae60"  # Emerald green
+        end_color = "#e74c3c"  # Alizarin red
 
         # 1. Plot reference path with dashed style for distinction
         ref_traj_pos = self.ref_traj[:, TrajColumns.POS.slice]
         idx_v = 2 if vertical_plane else 1
         plane_label = "XZ" if vertical_plane else "XY"
 
-        ax1.plot(ref_traj_pos[:, 0], ref_traj_pos[:, idx_v], 
-                color=ref_color, linestyle='--', linewidth=2, alpha=0.8, 
-                label=f"Reference Trajectory ({plane_label})")
+        ax1.plot(
+            ref_traj_pos[:, 0],
+            ref_traj_pos[:, idx_v],
+            color=ref_color,
+            linestyle="--",
+            linewidth=2,
+            alpha=0.8,
+            label=f"Reference Trajectory ({plane_label})",
+        )
 
         # 2. Set axes and equal aspect ratio
         bounds_margin = 0.5
@@ -389,31 +402,64 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
             x = state.quadrotor_state.p[i, :idx, 0]
             v_coord = state.quadrotor_state.p[i, :idx, idx_v]
             R = state.quadrotor_state.R[i, :idx]
-            
+
             # Actual flight path
-            ax1.plot(x, v_coord, color=traj_color, linewidth=1.5, alpha=0.7, 
-                    label="Rollout Trajectory" if i == 0 else None)
-            
+            ax1.plot(
+                x,
+                v_coord,
+                color=traj_color,
+                linewidth=1.5,
+                alpha=0.7,
+                label="Rollout Trajectory" if i == 0 else None,
+            )
+
             # Start/End points with white edges for visibility
-            ax1.scatter(x[0], v_coord[0], color=start_color, s=50, edgecolors='white', zorder=5, 
-                        label="Start" if i == 0 else None)
-            ax1.scatter(x[-1], v_coord[-1], color=end_color, s=50, edgecolors='white', zorder=5, 
-                        label="End" if i == 0 else None)
+            ax1.scatter(
+                x[0],
+                v_coord[0],
+                color=start_color,
+                s=50,
+                edgecolors="white",
+                zorder=5,
+                label="Start" if i == 0 else None,
+            )
+            ax1.scatter(
+                x[-1],
+                v_coord[-1],
+                color=end_color,
+                s=50,
+                edgecolors="white",
+                zorder=5,
+                label="End" if i == 0 else None,
+            )
 
             # Orientation vectors (quivers)
             n_orient = 10
             v_dir = R[::n_orient, idx_v, 0]
-            ax1.quiver(x[::n_orient], v_coord[::n_orient], R[::n_orient, 0, 0], v_dir, 
-                    color=arrow_color, scale=12.0, width=0.005, alpha=0.8,
-                    label="Heading" if i == 0 else None)
+            ax1.quiver(
+                x[::n_orient],
+                v_coord[::n_orient],
+                R[::n_orient, 0, 0],
+                v_dir,
+                color=arrow_color,
+                scale=12.0,
+                width=0.005,
+                alpha=0.8,
+                label="Heading" if i == 0 else None,
+            )
 
         # 4. Final Polish
-        ax1.set_title(f"Quadrotor Tracking Performance ({plane_label} Plane)", fontweight='bold', pad=15, fontsize=14)
+        ax1.set_title(
+            f"Quadrotor Tracking Performance ({plane_label} Plane)",
+            fontweight="bold",
+            pad=15,
+            fontsize=14,
+        )
         ax1.set_xlabel(f"{plane_label[0]} Position (m)")
         ax1.set_ylabel(f"{plane_label[1]} Position (m)")
 
-        ax1.legend(loc='best', fontsize='small', frameon=True)
-        sns.despine(left=True, bottom=True) # Cleaner look for equal-aspect plots
+        ax1.legend(loc="best", fontsize="small", frameon=True)
+        sns.despine(left=True, bottom=True)  # Cleaner look for equal-aspect plots
         plt.tight_layout()
 
         if save_path:

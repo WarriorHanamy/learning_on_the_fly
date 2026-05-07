@@ -33,9 +33,9 @@ max_sim_time: float          # 5.0
 delay: float                 # 0.04
 ref_traj_name: str           # "fig8"
 skip_start: bool             # true
-sim_dyn_config:              # Nested config
-  use_high_fidelity: bool    # false
-  use_forward_residual: bool # false
+forward_model_config:              # Nested config
+  enable_inner_loop_dynamics: bool    # false
+  enable_residual_acceleration: bool # false
 yaw_scale: float             # 0.1
 pitch_roll_scale: float      # 0.1
 position_std: float          # 0.1
@@ -60,9 +60,9 @@ max_sim_time: 5.0
 delay: 0.04
 ref_traj_name: fig8
 skip_start: true
-sim_dyn_config:
-  use_high_fidelity: false
-  use_forward_residual: false
+forward_model_config:
+  enable_inner_loop_dynamics: false
+  enable_residual_acceleration: false
 yaw_scale: 0.1
 pitch_roll_scale: 0.1
 position_std: 0.1
@@ -151,10 +151,10 @@ delay: 0.04
 ref_traj_name: fig8
 skip_start: true
 
-# Simulation dynamics config
-sim_dyn_config:
-  use_high_fidelity: false
-  use_forward_residual: false
+# Forward model config
+forward_model_config:
+  enable_inner_loop_dynamics: false
+  enable_residual_acceleration: false
 
 # Environment noise parameters
 yaw_scale: 0.1

@@ -90,10 +90,10 @@ class QuadrotorState(CustomPyTree):
 
 class Quadrotor:
     """
-    Full quadrotor model supporting high-fidelity and residual dynamics.
+    Quadrotor model supporting nominal and inner-loop dynamics with optional residual acceleration.
 
-    This class handles the simulation of quadrotor physics, including low-level
-    control (Betaflight-style), motor dynamics, and optional learned residuals.
+    This class handles the simulation of quadrotor physics, including inner-loop
+    control (Betaflight-style), motor dynamics, and optional learned residual acceleration.
     """
 
     def __init__(
@@ -117,7 +117,7 @@ class Quadrotor:
         thrust_max=8.5,
         rotors_config="cross",
         dt_low_level=0.001,
-        sim_dyn_config=None,
+        forward_model_config=None,
     ):
         """Initializes the quadrotor physical parameters and configuration."""
         assert rotors_config == "cross", "Only cross rotors configuration is supported"
@@ -156,33 +156,33 @@ class Quadrotor:
         self.rotor_augmentation_model = self.get_rotor_model()
 
         # simulation configuration
-        if sim_dyn_config is None:
-            sim_dyn_config = {
-                "use_high_fidelity": False,
-                "use_forward_residual": False,
+        if forward_model_config is None:
+            forward_model_config = {
+                "enable_inner_loop_dynamics": False,
+                "enable_residual_acceleration": False,
             }
-        self.use_high_fidelity = sim_dyn_config["use_high_fidelity"]
-        self.use_forward_residual = sim_dyn_config["use_forward_residual"]
+        self._enable_inner_loop_dynamics = forward_model_config["enable_inner_loop_dynamics"]
+        self._enable_residual_acceleration = forward_model_config["enable_residual_acceleration"]
 
-        # load inference function for residual dynamics
-        if self.use_forward_residual:
-            self.compute_res_fn = get_residual_dyn_model_apply_fn()
+        # load inference function for residual acceleration
+        if self._enable_residual_acceleration:
+            self._compute_residual_acceleration_fn = get_residual_dyn_model_apply_fn()
 
     @classmethod
-    def from_name(cls, name: str, dyn_config=None) -> Quadrotor:
+    def from_name(cls, name: str, forward_model_config=None) -> Quadrotor:
         """Loads quadrotor parameters by name from the quadrotor_files directory."""
         dirname = os.path.dirname(__file__)
         filename = os.path.join(dirname, "quadrotor_files/")
         filename += f"{name}.yaml"
-        return cls.from_yaml(filename, dyn_config)
+        return cls.from_yaml(filename, forward_model_config)
 
     @classmethod
-    def from_yaml(cls, path: str, dyn_config=None) -> Quadrotor:
+    def from_yaml(cls, path: str, forward_model_config=None) -> Quadrotor:
         """Loads quadrotor parameters from a specific YAML file path."""
         with open(path) as stream:
             try:
                 config = yaml.safe_load(stream)
-                return cls.from_dict(config, dyn_config)
+                return cls.from_dict(config, forward_model_config)
             except yaml.YAMLError as exc:
                 raise exc
 
@@ -194,7 +194,7 @@ class Quadrotor:
         return cls.from_yaml(filename)
 
     @classmethod
-    def from_dict(cls, config: dict, dyn_config=None) -> Quadrotor:
+    def from_dict(cls, config: dict, forward_model_config=None) -> Quadrotor:
         """Constructs a Quadrotor object from a configuration dictionary."""
         return cls(
             drone_name=config["name"],
@@ -214,7 +214,7 @@ class Quadrotor:
             thrust_min=config["thrust_min"],
             thrust_max=config["thrust_max"],
             rotors_config=config["rotors_config"],
-            sim_dyn_config=dyn_config,
+            forward_model_config=forward_model_config,
         )
 
     @property
@@ -292,8 +292,8 @@ class Quadrotor:
             next_state: updated state after dt
         """
 
-        # compute learned residual if enabled
-        if self.use_forward_residual:
+        # compute learned residual acceleration if enabled
+        if self._enable_residual_acceleration:
             p = state.p
             R = state.R
             v = state.v
@@ -323,7 +323,7 @@ class Quadrotor:
             )
 
             # compute residual acceleration mean
-            preds = self.compute_res_fn(res_model_params, state_for_res)
+            preds = self._compute_residual_acceleration_fn(res_model_params, state_for_res)
             res_acc_mean = jnp.mean(preds, axis=0)
             state = state.replace(res_acc_mean=res_acc_mean)
 
@@ -337,14 +337,18 @@ class Quadrotor:
             if dt <= 0.0:
                 return state
 
-            # high-fidelity forward simulation using low-level control and rk4
-            if self.use_high_fidelity:
+            # inner-loop forward simulation using low-level control and rk4
+            if self._enable_inner_loop_dynamics:
 
                 def control_fn(state, _unused):
-                    # compute low level commands (betaflight logic)
-                    motor_omega_d = self._llc_betaflight(state, f_d, omega_d, self._dt_low_level)
+                    # compute motor commands from betaflight-style inner-loop controller
+                    motor_omega_d = self._compute_inner_loop_motor_commands(
+                        state, f_d, omega_d, self._dt_low_level
+                    )
                     # integrate dynamics at the controller frequency
-                    state = self._full_dyn(state, motor_omega_d, self._dt_low_level)
+                    state = self._integrate_inner_loop_dynamics(
+                        state, motor_omega_d, self._dt_low_level
+                    )
                     return state, None
 
                 # calculate number of steps required to reach dt
@@ -356,14 +360,14 @@ class Quadrotor:
                 state_new, _ = jax.lax.scan(control_fn, state, length=N)
                 return state_new
 
-            # low-fidelity forward simulation (point mass + exact rotation)
+            # nominal forward simulation (point mass + exact rotation)
             else:
-                if self.use_forward_residual:
-                    p_new, R_new, v_new = self._simplified_res_dyn(
+                if self._enable_residual_acceleration:
+                    p_new, R_new, v_new = self._integrate_nominal_dynamics_with_residual(
                         state.p, state.R, state.v, f_d / self._mass, state.res_acc_mean, omega_d, dt
                     )
                 else:
-                    p_new, R_new, v_new = simplified_dyn(
+                    p_new, R_new, v_new = integrate_nominal_dynamics(
                         state.p, state.R, state.v, f_d / self._mass, omega_d, dt
                     )
 
@@ -384,10 +388,10 @@ class Quadrotor:
             # calculate primal next state
             state_new = _step(state, f_d, omega_d, dt)
 
-            # simple gradient pass through analytical dynamics
+            # gradient pass through nominal analytical dynamics (no residual, no inner-loop)
             primals_simple = (p, R, v, f_d / self._mass, omega_d, dt)
             tangents_simple = (p_dot, R_dot, v_dot, f_d_dot / self._mass, omega_d_dot, 0.0)
-            _, tan_out = jax.jvp(simplified_dyn, primals_simple, tangents_simple)
+            _, tan_out = jax.jvp(integrate_nominal_dynamics, primals_simple, tangents_simple)
 
             p_tan, R_tan, v_tan = tan_out
 
@@ -408,7 +412,7 @@ class Quadrotor:
         return _step(state, f_d, omega_d, dt)
 
     @partial(jax.jit, static_argnums=(0,))
-    def _simplified_res_dyn(
+    def _integrate_nominal_dynamics_with_residual(
         self,
         p: jax.Array,
         R: jax.Array,
@@ -419,7 +423,7 @@ class Quadrotor:
         dt: jax.Array,
         gravity: jax.Array = jnp.array([0, 0, -9.81]),
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
-        """Integrates position and velocity using RK4 with a pre-computed residual."""
+        """Integrates position and velocity using RK4 with a pre-computed residual acceleration."""
 
         def dynamics(rk4_p, rk4_v):
             dvdt = gravity + R @ jnp.array([0.0, 0.0, a]) + a_res
@@ -441,8 +445,8 @@ class Quadrotor:
 
         return p_new, R_new, v_new
 
-    def _full_dyn(self, state: QuadrotorState, motor_omega_d, dt):
-        """High-fidelity physics integration using RK4."""
+    def _integrate_inner_loop_dynamics(self, state: QuadrotorState, motor_omega_d, dt):
+        """Inner-loop physics integration (motor lag + full body dynamics) using RK4."""
         p = state.p
         R = state.R
         v = state.v
@@ -526,8 +530,8 @@ class Quadrotor:
             acc=acc,
         )
 
-    def _llc_betaflight(self, state: QuadrotorState, f_T, omega_cmd, dt):
-        """Implements a simplified Betaflight-style body rate controller."""
+    def _compute_inner_loop_motor_commands(self, state: QuadrotorState, f_T, omega_cmd, dt):
+        """Builds motor commands from a Betaflight-style body rate controller."""
         omega = state.omega
         domega = state.domega
 
@@ -610,11 +614,11 @@ class Quadrotor:
     def print_config(self):
         """Prints current simulation configuration to console."""
         print(f"[QUAD OBJ] Drone name: {self._drone_name}")
-        print(f"[QUAD OBJ] Use high fidelity: {self.use_high_fidelity}")
-        print(f"[QUAD OBJ] Use forward residual: {self.use_forward_residual}")
+        print(f"[QUAD OBJ] Enable inner-loop dynamics: {self._enable_inner_loop_dynamics}")
+        print(f"[QUAD OBJ] Enable residual acceleration: {self._enable_residual_acceleration}")
 
 
-def simplified_dyn(
+def integrate_nominal_dynamics(
     p: jax.Array,
     R: jax.Array,
     v: jax.Array,
