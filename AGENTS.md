@@ -11,7 +11,7 @@ Learning on the Fly (LOTF) 是一个基于 JAX 的可微仿真库，专注于四
 - 可微物理仿真，支持自动微分
 - 残差动力学学习，弥合 sim-to-real 差距
 - BPTT（Backpropagation Through Time）策略优化
-- 支持状态悬停、轨迹跟踪和视觉悬停任务
+- 支持状态悬停和轨迹跟踪任务
 - JAX JIT 编译优化，支持 GPU 加速
 
 **技术栈**：JAX, Flax, Optax, Orbax
@@ -28,7 +28,6 @@ learning_on_the_fly/
 │   ├── envs/               # 环境层
 │   │   ├── env_base.py              # 环境基类
 │   │   ├── hovering_state_env.py    # 状态悬停环境
-│   │   ├── hovering_features_env.py # 特征悬停（视觉）环境
 │   │   ├── traj_tracking_state_env.py # 轨迹跟踪环境
 │   │   └── wrappers.py              # 环境包装器
 │   ├── modules/            # 神经网络模块层
@@ -37,8 +36,6 @@ learning_on_the_fly/
 │   │   ├── quadrotor_obj.py         # 四旋翼对象
 │   │   ├── world_box_obj.py         # 世界边界框
 │   │   └── reference_traj_obj.py    # 参考轨迹（CIRCLE、FIG8、STAR）
-│   ├── sensors/            # 传感器层
-│   │   └── double_sphere_camera.py  # 双球面相机模型
 │   ├── simulation/         # 仿真层
 │   │   └── model_rotor.py            # 高保真四旋翼动力学模型
 │   ├── utils/              # 工具层
@@ -61,8 +58,7 @@ learning_on_the_fly/
 ├── examples/              # Jupyter notebook 示例
 │   ├── residual_dynamics/ # 残差动力学（1个笔记本）
 │   ├── state_hovering/    # 状态悬停（4个笔记本）
-│   ├── traj_tracking/     # 轨迹跟踪（4个笔记本）
-│   └── vision_hovering/   # 视觉悬停（5个笔记本）
+│   └── traj_tracking/     # 轨迹跟踪（4个笔记本）
 │
 ├── tests/                 # 单元测试
 │   ├── test_main.py
@@ -76,7 +72,6 @@ learning_on_the_fly/
 ├── configs/               # YAML 配置文件
 │   ├── state_hovering.yaml
 │   ├── traj_tracking.yaml
-│   ├── vision_hovering.yaml
 │   └── residual_dynamics.yaml
 │
 ├── docs/                  # 项目文档
@@ -103,9 +98,8 @@ learning_on_the_fly/
 2. **环境层** (`envs/`): 任务特定的模拟环境
 3. **模块层** (`modules/`): 可复用的神经网络组件
 4. **对象层** (`objects/`): 物理仿真对象
-5. **传感器层** (`sensors/`): 感知模块
-6. **仿真层** (`simulation/`): 物理动力学模型
-7. **工具层** (`utils/`): 通用工具函数
+5. **仿真层** (`simulation/`): 物理动力学模型
+6. **工具层** (`utils/`): 通用工具函数
 
 ### 文件命名约定
 
@@ -222,7 +216,6 @@ jupyter lab examples/state_hovering
 │     算法层 (algos/)      │  │    环境层 (envs/)       │
 │  BPTT 训练循环            │  │  HoveringStateEnv        │
 │  损失函数计算             │  │  TrajTrackingStateEnv    │
-│  梯度反向传播             │  │  HoveringFeaturesEnv     │
 └──────────────────────────┘  └──────────────────────────┘
                 │                       │
                 │                       │
@@ -238,9 +231,8 @@ jupyter lab examples/state_hovering
                 ▼                       ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      基础设施层                              │
-│  仿真 (simulation/)      │  传感器 (sensors/)                │
-│  - model_rotor.py        │  - DoubleSphereCamera            │
-│                          │  工具 (utils/)                   │
+│  仿真 (simulation/)      │  工具 (utils/)                   │
+│  - model_rotor.py        │  - math, spaces, pytrees        │
 │                          │  - math, spaces, pytrees        │
 │                          │  - random, lora                  │
 └─────────────────────────────────────────────────────────────┘
@@ -331,7 +323,6 @@ checkpoints/
 ├── policy/
 │   ├── state_hovering_params/
 │   ├── traj_tracking_params/
-│   └── vision_hovering_params/
 └── residual_dynamics/
     ├── dummy_params/
     │   ├── _CHECKPOINT_METADATA  # JSON: 时间戳、处理器信息
@@ -421,29 +412,31 @@ CSV 数据集 → pandas 加载 → JAX 数组 → 向量化初始化 → 集成
    - 从 CSV 文件加载参考路径（circle、figure-8、star）
    - 比较状态与参考路点计算跟踪奖励
 
-3. **HoveringFeaturesEnv**: 基于特征的变体，用于视觉控制
-
 ### 关键算法和计算
 
-#### 物理仿真（两种保真度模式）
+#### 物理仿真（两个正交开关）
 
-**低保真模式**（`simplified_dyn()`）:
+`Quadrotor.step()` 的正向动力学由两个独立 flag 控制，产生四种组合。
+**反向梯度路径始终使用 `simplified_dyn()`（自定义 JVP，`quadrotor_obj.py:372-405`），不受这两个 flag 影响。**
 
-```python
-# 核心方程：
-dvdt = gravity + R @ [0, 0, thrust/mass] + residual_acceleration
-dpdt = velocity
-# 积分：位置/速度使用 RK4
-# 旋转：精确矩阵指数
-```
+| `use_high_fidelity` | `use_forward_residual` | 正向加速度方程                                                     | 内部子步                 |
+| ------------------- | ---------------------- | ------------------------------------------------------------------ | ----------------------- |
+| F                   | F                      | `acc = g + R·[0,0,a]`                                                | 1 步 `simplified_dyn`     |
+| F                   | T                      | `acc = g + R·[0,0,a] + nn_residual`                                 | 1 步 `_simplified_res_dyn` |
+| T                   | F                      | `acc = g + R·f/m + rotor_poly_residual`                             | N 步 `_full_dyn` (dt_low_level=0.001) |
+| T                   | T                      | `acc = g + R·f/m + rotor_poly_residual + nn_residual`               | N 步 `_full_dyn`          |
 
-**保真模式**（`_full_dyn()`）:
+**`simplified_dyn`** (`quadrotor_obj.py:617`):
+- 状态: `(p, R, v)`。单力方程 `dv/dt = g + R·[0,0,a]`，RK4 积分 + 精确旋转矩阵指数。
+- 无电机、无角速度动力学、无域随机化。
 
-- **电机动力学**: 具有时间常数 `tau` 的一阶滞后
-- **低层控制**: Betaflight 风格的体角速度 PD 控制器
-- **转子增强**: 气动残差的多项式模型
-- **完整状态**: 包括电机转速、角速度、角加速度
-- **积分**: 所有状态变量的 RK4
+**`_full_dyn`** (`quadrotor_obj.py:444`):
+- 状态: `(p, R, v, ω, dω, motor_ω, acc)`。每步展开 N = ceil(dt/dt_low_level) 次 scan:
+  1. `_llc_betaflight()` — PD body-rate 控制器 → motor throttle
+  2. `_throttle_to_dshot()` / `_dshot_to_motor_speeds()` — 信号转换链
+  3. `_full_dyn()` — RK4 积分 (p,v,ω) + 电机一阶滞后 (τ=0.033) + 惯性扭矩 + 推力域随机化 (±15%)
+- 增加的 `rotor_poly_residual` 来自 `model_rotor.py:compute_residuals()` 的旋翼气动多项式模型。
+- 无外部扰动（风、外力等）。
 
 #### 控制延迟模拟
 
@@ -1133,9 +1126,7 @@ Quadrotor（四旋翼）
 ```
 Env（环境基类）
 ├── HoveringStateEnv（状态悬停环境）
-├── TrajTrackingStateEnv（轨迹跟踪环境）
-└── HoveringFeaturesEnv（特征悬停环境）
-    └── DoubleSphereCamera（双球面相机）
+└── TrajTrackingStateEnv（轨迹跟踪环境）
 ```
 
 #### 神经网络模块层次
@@ -1243,7 +1234,6 @@ LoRA 就像电源适配器，将预训练模型"插到"新任务上，而不改�
 | 环境目录   | lotf/envs/README.md         | 悬停和轨迹跟踪环境 |
 | 神经网络   | lotf/modules/README.md       | MLP、LoRA、残差   |
 | 对象目录   | lotf/objects/README.md      | 四旋翼、参考轨迹   |
-| 传感器目录 | lotf/sensors/README.md      | 双球相机模型      |
 | 仿真目录   | lotf/simulation/README.md    | 旋翼动力学        |
 
 ### 场景文档
@@ -1260,15 +1250,12 @@ LoRA 就像电源适配器，将预训练模型"插到"新任务上，而不改�
 | 残差动力学                | examples/residual_dynamics/               | 1 个笔记本     |
 | 状态悬停                  | examples/state_hovering/                  | 4 个笔记本     |
 | 轨迹跟踪                  | examples/traj_tracking/                   | 4 个笔记本     |
-| 视觉悬停                  | examples/vision_hovering/                 | 5 个笔记本     |
-
 ### 配置文件
 
 | 配置文件                    | 路径                           | 说明                   |
 | --------------------------- | ------------------------------ | ---------------------- |
 | 状态悬停配置                | configs/state_hovering.yaml    | 带详细注释             |
 | 轨迹跟踪配置                | configs/traj_tracking.yaml     | 轨迹跟踪训练           |
-| 视觉悬停配置                | configs/vision_hovering.yaml   | 视觉悬停训练           |
 | 残差动力学配置              | configs/residual_dynamics.yaml | 残差动力学集成训练     |
 
 ---

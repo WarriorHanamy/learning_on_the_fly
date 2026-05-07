@@ -1,6 +1,6 @@
 # Training Guide
 
-This guide provides comprehensive documentation for training all four tasks in Learning on the Fly (LOTF): residual dynamics learning, state-based hovering, trajectory tracking, and vision-based hovering.
+This guide provides comprehensive documentation for training all three tasks in Learning on the Fly (LOTF): residual dynamics learning, state-based hovering, and trajectory tracking.
 
 ## Table of Contents
 
@@ -9,7 +9,6 @@ This guide provides comprehensive documentation for training all four tasks in L
 - [Task 1: Residual Dynamics Training](#task-1-residual-dynamics-training)
 - [Task 2: State-Based Hovering Training](#task-2-state-based-hovering-training)
 - [Task 3: Trajectory Tracking Training](#task-3-trajectory-tracking-training)
-- [Task 4: Vision-Based Hovering Training](#task-4-vision-based-hovering-training)
 - [Checkpoint Loading Examples](#checkpoint-loading-examples)
 - [GPU Requirements and Optimization](#gpu-requirements-and-optimization)
 - [Troubleshooting](#troubleshooting)
@@ -23,7 +22,6 @@ LOTF provides training scripts for four different tasks:
 | Residual Dynamics | Learn physics residuals from real data | Supervised learning (MSE) | Optional |
 | State Hovering | Train hovering policy from state observations | BPTT (reinforcement learning) | Recommended |
 | Trajectory Tracking | Track predefined trajectories | BPTT (reinforcement learning) | Recommended |
-| Vision Hovering | Train vision-based policy from features | Pretraining + BPTT | Required |
 
 ## Prerequisites
 
@@ -439,144 +437,6 @@ Policy saved successfully to: checkpoints/policy/traj_tracking_params
 Training complete!
 ```
 
-## Task 4: Vision-Based Hovering Training
-
-Vision-based hovering training is a two-stage process:
-1. **Pretraining**: Train a state prediction model using collected rollout data
-2. **Fine-tuning**: Fine-tune the policy using BPTT with vision features
-
-### Stage 1: Pretraining (State Prediction)
-
-Pretraining collects rollout data and trains a model to predict future states.
-
-#### Pretraining Workflow
-
-**Note**: Pretraining is typically done via Jupyter notebooks. See `examples/vision_hovering/1_pretrain_base_policy.ipynb`. To run the example code below as a script, save it to a file (e.g., `pretrain.py`) and run with `uv run python pretrain.py`.
-
-```python
-import jax
-from lotf.envs import HoveringFeaturesEnv, rollout
-from lotf.objects import Quadrotor
-from lotf.utils.math import normalize
-
-# Setup environment
-sim_dyn_config = {
-    "use_high_fidelity": False,
-    "use_forward_residual": False,
-}
-quad_obj = Quadrotor.from_name("example_quad", sim_dyn_config)
-
-env = HoveringFeaturesEnv(
-    max_steps_in_episode=int(3.0 / 0.02),
-    dt=0.02,
-    delay=0.04,
-    yaw_scale=1.0,
-    pitch_roll_scale=0.3,
-    velocity_std=2.0,
-    omega_std=2.0,
-    quad_obj=quad_obj,
-    reward_sharpness=5.0,
-    action_penalty_weight=0.5,
-    num_last_quad_states=15,
-    skip_frames=3,
-    hover_target=[1.5, 0.0, 1.5],
-)
-
-# Collect rollouts
-num_rollouts = 100
-rollout_keys = jax.random.split(jax.random.key(0), num_rollouts)
-transitions = [rollout(env, key, None, None) for key in rollout_keys]
-
-# Train state prediction model
-# (See notebook for full implementation)
-```
-
-#### Pretraining Configuration
-
-Edit `configs/vision_hovering.yaml` pretraining section:
-
-```yaml
-# Pretraining settings (for state prediction task)
-pretrain:
-  epochs: 500               # Number of pretraining epochs
-  batch_size: 1024          # Batch size for pretraining
-  learning_rate: 0.001      # Learning rate for pretraining
-  num_rollouts: 100         # Number of rollouts to collect
-  rollout_steps: 1000       # Steps per rollout
-```
-
-### Stage 2: Fine-Tuning (Vision Hovering)
-
-Fine-tune the pretrained policy using BPTT with vision features.
-
-**Note**: Vision hovering does not have a CLI script yet. Use the Jupyter notebook at `examples/vision_hovering/2_train_base_policy.ipynb`.
-
-### Configuration File
-
-Edit `configs/vision_hovering.yaml` to customize training:
-
-```yaml
-# Random seed for reproducibility
-seed: 0
-
-# Training parameters
-num_envs: 300              # Number of parallel environments
-max_epochs: 200            # Number of training epochs
-
-# Simulation parameters
-sim_dt: 0.02               # Simulation time step (seconds)
-max_sim_time: 3.0          # Maximum simulation time per episode (seconds)
-delay: 0.04                # Action delay (seconds)
-
-# Reward parameters
-reward_sharpness: 2.0      # Sharpness parameter for reward function
-action_penalty_weight: 0.5   # Weight for action penalty in reward
-
-# Hover target position [x, y, z]
-hover_target:
-  - 1.5
-  - 0.0
-  - 1.5
-
-# Simulation dynamics config
-sim_dyn_config:
-  use_high_fidelity: false   # Use high-fidelity dynamics
-  use_forward_residual: false # Use residual dynamics in forward sim
-
-# Environment noise parameters
-yaw_scale: 1.0             # Yaw randomization scale
-pitch_roll_scale: 0.1       # Pitch/roll randomization scale
-velocity_std: 0.1           # Velocity noise std
-omega_std: 0.1              # Angular velocity noise std
-margin: 0.5                 # Initial position randomization margin
-
-# Feature extraction parameters
-num_last_quad_states: 15     # Number of past states to include
-skip_frames: 3               # Frame skipping for feature extraction
-
-# Policy network architecture
-policy_net:
-  hidden_layers:
-    - 512
-    - 512
-  initial_scale: 0.01       # Weight initialization scale
-
-# Optimizer settings
-optimizer:
-  initial_lr: 0.001         # Initial learning rate
-  scheduler: cosine_decay    # Learning rate scheduler
-```
-
-### BPTT Notes
-
-**Warning**: Vision hovering uses BPTT with high-dimensional observations. GPU is required.
-
-- **Observation dimension**: 82 features (compared to 27 for state-based)
-- **Parallel environments**: 300+ parallel environments
-- **Episode length**: 150 steps (3.0 seconds @ 0.02s/step)
-- **Training time**: ~15-30 minutes on GPU, ~90-180 minutes on CPU
-- **Memory usage**: ~4-8GB GPU memory for default settings
-
 ## Checkpoint Loading Examples
 
 > **Note**: Save any of these Python code blocks to a file (e.g., `load_checkpoint.py`) and run with `uv run python load_checkpoint.py`.
@@ -714,61 +574,6 @@ def policy_trained(obs, key):
     return loaded_train_state.apply_fn(loaded_train_state.params, obs)
 ```
 
-### Loading Policy Checkpoints (Vision-Based Hovering)
-
-```python
-import jax
-import optax
-from flax.training.train_state import TrainState
-from lotf import LOTF_PATH
-from lotf.envs import HoveringFeaturesEnv
-from lotf.modules import MLP
-from lotf.objects import Quadrotor
-from orbax.checkpoint import PyTreeCheckpointer
-
-# Create environment
-sim_dyn_config = {
-    "use_high_fidelity": False,
-    "use_forward_residual": False,
-}
-quad_obj = Quadrotor.from_name("example_quad", sim_dyn_config)
-
-eval_env = HoveringFeaturesEnv(
-    max_steps_in_episode=int(10.0 / 0.02),
-    dt=0.02,
-    delay=0.04,
-    quad_obj=quad_obj,
-    num_last_quad_states=15,
-    skip_frames=3,
-    margin=0.5,
-    hover_target=[1.5, 0.0, 1.5],
-)
-
-action_dim = eval_env.action_space.shape[0]
-obs_dim = eval_env.observation_space.shape[0]
-
-# Create policy network and load parameters
-policy_name = "vision_hovering_params"
-
-base_policy_net = MLP(
-    [obs_dim, 512, 512, action_dim],
-    action_bias=eval_env.hovering_action,
-)
-
-path = LOTF_PATH + "/../checkpoints/policy/" + policy_name
-ckptr = PyTreeCheckpointer()
-base_policy_params = ckptr.restore(path)
-loaded_train_state = TrainState.create(
-    apply_fn=base_policy_net.apply,
-    params=base_policy_params,
-    tx=optax.adam(1e-3)
-)
-
-# Define policy function for rollout
-def policy_trained(obs, key):
-    return loaded_train_state.apply_fn(loaded_train_state.params, obs)
-```
-
 ### Running Rollouts with Loaded Checkpoints
 
 ```python
@@ -800,7 +605,6 @@ eval_env.plot_trajectories(transitions_eval)
 | Residual Dynamics | CPU OK | RTX 3060 | 1-2GB |
 | State Hovering | GTX 1660 | RTX 3070 | 2-4GB |
 | Trajectory Tracking | GTX 1660 | RTX 3070 | 3-6GB |
-| Vision Hovering | RTX 3060 | RTX 3080 | 4-8GB |
 
 ### GPU Memory Optimization
 

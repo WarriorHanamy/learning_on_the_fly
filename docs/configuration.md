@@ -10,193 +10,6 @@ Complete guide to all configuration files and parameters in Learning on the Fly 
 - [Task-Specific Parameters](#task-specific-parameters)
   - [State-Based Hovering (`configs/state_hovering.yaml`)](#state-based-hovering-configsstate_hoveringyaml)
   - [Trajectory Tracking (`configs/traj_tracking.yaml`)](#trajectory-tracking-configstraj_trackingyaml)
-  - [Vision-Based Hovering (`configs/vision_hovering.yaml`)](#vision-based-hovering-configsvision_hoveringyaml)
-  - [Residual Dynamics (`configs/residual_dynamics.yaml`)](#residual-dynamics-configsresidual_dynamicsyaml)
-- [Complete YAML Examples](#complete-yaml-examples)
-- [Parameter Tuning Guidelines](#parameter-tuning-guidelines)
-- [Configuration Validation](#configuration-validation)
-
-## Configuration System Overview
-
-LOTF uses YAML configuration files to control training parameters across all four training tasks. Configuration files are loaded using Python dataclasses with validation and type checking, ensuring reproducibility and preventing runtime errors.
-
-### Configuration Architecture
-
-The configuration system is organized into nested dataclasses:
-
-```
-Training Config (YAML)
-├── Common Parameters (seed, num_envs, max_epochs, etc.)
-├── Simulation Parameters (sim_dt, max_sim_time, delay)
-├── Reward Parameters (reward_sharpness, action_penalty_weight)
-├── Environment Noise (yaw_scale, velocity_std, omega_std, etc.)
-├── Simulation Dynamics (sim_dyn_config)
-├── Policy Network (policy_net)
-└── Optimizer (optimizer)
-```
-
-### Key Features
-
-- **Type Safety**: All configs are validated against typed dataclasses
-- **Nested Structure**: Related parameters are grouped in sub-configurations
-- **Default Values**: Reasonable defaults are provided for all parameters
-- **Runtime Overrides**: Configs can be modified via command-line arguments
-- **Reproducibility**: Seed control ensures deterministic behavior
-
-## File Locations
-
-All training configuration files are located in the `configs/` directory at the repository root:
-
-```
-configs/
-├── state_hovering.yaml      # State-based hovering policy training
-├── traj_tracking.yaml       # Trajectory tracking policy training
-├── vision_hovering.yaml     # Vision-based hovering policy training
-└── residual_dynamics.yaml   # Residual dynamics ensemble training
-```
-
-### Config File Mappings
-
-| Config File | Task Type | Training Script | Notebook |
-|-------------|----------|-----------------|----------|
-| `state_hovering.yaml` | State Hovering | `lotf/scripts/train_state_hovering.py` | `examples/state_hovering/1_train_base_policy.ipynb` |
-| `traj_tracking.yaml` | Trajectory Tracking | `lotf/scripts/train_traj_tracking.py` | `examples/traj_tracking/1_train_base_policy.ipynb` |
-| `vision_hovering.yaml` | Vision Hovering | (Notebook only) | `examples/vision_hovering/2_train_base_policy.ipynb` |
-| `residual_dynamics.yaml` | Residual Dynamics | `lotf/scripts/train_residual.py` | `examples/residual_dynamics/train_ensemble_model.ipynb` |
-
-## Common Parameters
-
-These parameters appear across multiple training configurations:
-
-### Training Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `seed` | int | 0 | Random seed for reproducibility. Set to 0 for deterministic behavior. |
-| `num_envs` | int | 200-300 | Number of parallel environments for vectorized training. Higher values improve sample efficiency but require more memory. |
-| `max_epochs` | int | 100-300 | Maximum number of training epochs. Training stops early if convergence is detected. |
-| `learning_rate` | float | 0.001-0.01 | Learning rate for the optimizer. Lower values (0.001) for vision tasks, higher (0.01) for residual dynamics. |
-
-### Simulation Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `sim_dt` | float | 0.02 | Simulation timestep in seconds (50 Hz physics). Smaller values improve accuracy but increase computation. |
-| `max_sim_time` | float | 3.0-5.0 | Maximum simulation time per episode in seconds. Longer episodes allow more complex behaviors. |
-| `delay` | float | 0.04 | Action delay in seconds, simulating real-world latency. Typical value: 0.04 (40ms). |
-
-### Reward Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `reward_sharpness` | float | 2.0-3.0 | Sharpness of the exponential reward function. Higher values (3.0) create steeper gradients for faster learning. |
-| `action_penalty_weight` | float | 0.5 | Weight for action regularization in reward function. Higher values encourage smoother control. |
-
-### Simulation Dynamics Configuration
-
-Nested under `sim_dyn_config`:
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `use_high_fidelity` | bool | false | Enable high-fidelity physics simulation. Increases realism and computational cost. |
-| `use_forward_residual` | bool | false | Use learned residual dynamics in forward simulation. Requires pretrained residual model. |
-
-### Policy Network Configuration
-
-Nested under `policy_net`:
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `hidden_layers` | list[int] | [512, 512] | List of hidden layer sizes for the policy network. More layers increase capacity. |
-| `initial_scale` | float | 0.01 | Scale for initial weight initialization. Smaller values (0.01) are better for pretrained policies. |
-
-### Optimizer Configuration
-
-Nested under `optimizer`:
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `initial_lr` | float | 0.001-0.005 | Initial learning rate. Higher (0.005) for state-based tasks, lower (0.001) for vision tasks. |
-| `scheduler` | str | cosine_decay | Learning rate schedule. Currently supports: `cosine_decay`. |
-
-## Task-Specific Parameters
-
-### State-Based Hovering (`configs/state_hovering.yaml`)
-
-Trains a hovering policy using full state observations (position, orientation, velocity).
-
-**Unique Parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `hover_target` | list[float] | [1.5, 0.0, 1.5] | Target hover position [x, y, z] in meters. |
-| `margin` | float | 0.5 | Margin around hover target for initial position randomization in meters. |
-| `yaw_scale` | float | 1.0 | Scale for yaw randomization (radians). Higher values increase difficulty. |
-| `pitch_roll_scale` | float | 0.1 | Scale for pitch/roll randomization (radians). |
-| `velocity_std` | float | 0.1 | Standard deviation for velocity randomization (m/s). |
-| `omega_std` | float | 0.1 | Standard deviation for angular velocity randomization (rad/s). |
-
-**Complete Parameter List:**
-
-```yaml
-seed: int                    # 0
-num_envs: int                # 200
-max_epochs: int              # 200
-sim_dt: float                # 0.02
-max_sim_time: float          # 3.0
-delay: float                 # 0.04
-reward_sharpness: float      # 3.0
-action_penalty_weight: float # 0.5
-hover_target: list[float]    # [1.5, 0.0, 1.5]
-sim_dyn_config:              # Nested config
-  use_high_fidelity: bool    # false
-  use_forward_residual: bool # false
-yaw_scale: float             # 1.0
-pitch_roll_scale: float      # 0.1
-velocity_std: float          # 0.1
-omega_std: float             # 0.1
-margin: float                # 0.5
-policy_net:                  # Nested config
-  hidden_layers: list[int]   # [512, 512]
-  initial_scale: float       # 0.01
-optimizer:                   # Nested config
-  initial_lr: float          # 0.005
-  scheduler: str             # cosine_decay
-```
-
-**Default Configuration:**
-
-```yaml
-seed: 0
-num_envs: 200
-max_epochs: 200
-sim_dt: 0.02
-max_sim_time: 3.0
-delay: 0.04
-reward_sharpness: 3.0
-action_penalty_weight: 0.5
-hover_target:
-  - 1.5
-  - 0.0
-  - 1.5
-sim_dyn_config:
-  use_high_fidelity: false
-  use_forward_residual: false
-yaw_scale: 1.0
-pitch_roll_scale: 0.1
-velocity_std: 0.1
-omega_std: 0.1
-margin: 0.5
-policy_net:
-  hidden_layers:
-    - 512
-    - 512
-  initial_scale: 0.01
-optimizer:
-  initial_lr: 0.005
-  scheduler: cosine_decay
-```
-
 ### Trajectory Tracking (`configs/traj_tracking.yaml`)
 
 Trains a policy to track predefined reference trajectories (figure-8, circle, star).
@@ -264,106 +77,6 @@ policy_net:
 optimizer:
   initial_lr: 0.001
   scheduler: cosine_decay
-```
-
-### Vision-Based Hovering (`configs/vision_hovering.yaml`)
-
-Trains a hovering policy using visual features extracted from camera observations. Requires pretraining phase.
-
-**Unique Parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `num_last_quad_states` | int | 15 | Number of recent quadrotor states to include in observations. |
-| `skip_frames` | int | 3 | Number of frames to skip between observations (reduces temporal correlation). |
-
-**Pretraining Configuration**
-
-Nested under `pretrain`:
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `epochs` | int | 500 | Number of pretraining epochs for state prediction task. |
-| `batch_size` | int | 1024 | Batch size for pretraining. |
-| `learning_rate` | float | 0.001 | Learning rate for pretraining. |
-| `num_rollouts` | int | 100 | Number of rollouts to collect for pretraining dataset. |
-| `rollout_steps` | int | 1000 | Steps per rollout for data collection. |
-
-**Complete Parameter List:**
-
-```yaml
-seed: int                    # 0
-num_envs: int                # 300
-max_epochs: int              # 200
-sim_dt: float                # 0.02
-max_sim_time: float          # 3.0
-delay: float                 # 0.04
-reward_sharpness: float      # 2.0
-action_penalty_weight: float # 0.5
-hover_target: list[float]    # [1.5, 0.0, 1.5]
-sim_dyn_config:              # Nested config
-  use_high_fidelity: bool    # false
-  use_forward_residual: bool # false
-yaw_scale: float             # 1.0
-pitch_roll_scale: float      # 0.1
-velocity_std: float          # 0.1
-omega_std: float             # 0.1
-margin: float                # 0.5
-num_last_quad_states: int    # 15
-skip_frames: int             # 3
-policy_net:                  # Nested config
-  hidden_layers: list[int]   # [512, 512]
-  initial_scale: float       # 0.01
-optimizer:                   # Nested config
-  initial_lr: float          # 0.001
-  scheduler: str             # cosine_decay
-pretrain:                    # Nested config
-  epochs: int                # 500
-  batch_size: int            # 1024
-  learning_rate: float       # 0.001
-  num_rollouts: int          # 100
-  rollout_steps: int         # 1000
-```
-
-**Default Configuration:**
-
-```yaml
-seed: 0
-num_envs: 300
-max_epochs: 200
-sim_dt: 0.02
-max_sim_time: 3.0
-delay: 0.04
-reward_sharpness: 2.0
-action_penalty_weight: 0.5
-hover_target:
-  - 1.5
-  - 0.0
-  - 1.5
-sim_dyn_config:
-  use_high_fidelity: false
-  use_forward_residual: false
-yaw_scale: 1.0
-pitch_roll_scale: 0.1
-velocity_std: 0.1
-omega_std: 0.1
-margin: 0.5
-num_last_quad_states: 15
-skip_frames: 3
-policy_net:
-  hidden_layers:
-    - 512
-    - 512
-  initial_scale: 0.01
-optimizer:
-  initial_lr: 0.001
-  scheduler: cosine_decay
-pretrain:
-  epochs: 500
-  batch_size: 1024
-  learning_rate: 0.001
-  num_rollouts: 100
-  rollout_steps: 1000
 ```
 
 ### Residual Dynamics (`configs/residual_dynamics.yaml`)
@@ -517,71 +230,6 @@ optimizer:
   scheduler: cosine_decay
 ```
 
-### Vision-Based Hovering (`configs/vision_hovering.yaml`)
-
-```yaml
-# Vision-Based Hovering Training Configuration
-# Extracted from examples/vision_hovering/2_train_base_policy.ipynb
-
-# Random seed for reproducibility
-seed: 0
-
-# Training parameters
-num_envs: 300
-max_epochs: 200
-
-# Simulation parameters
-sim_dt: 0.02
-max_sim_time: 3.0
-delay: 0.04
-
-# Reward parameters
-reward_sharpness: 2.0
-action_penalty_weight: 0.5
-
-# Hover target position [x, y, z]
-hover_target:
-  - 1.5
-  - 0.0
-  - 1.5
-
-# Simulation dynamics config
-sim_dyn_config:
-  use_high_fidelity: false
-  use_forward_residual: false
-
-# Environment noise parameters
-yaw_scale: 1.0
-pitch_roll_scale: 0.1
-velocity_std: 0.1
-omega_std: 0.1
-margin: 0.5
-
-# Feature extraction parameters
-num_last_quad_states: 15
-skip_frames: 3
-
-# Policy network architecture
-policy_net:
-  hidden_layers:
-    - 512
-    - 512
-  initial_scale: 0.01
-
-# Optimizer settings
-optimizer:
-  initial_lr: 0.001
-  scheduler: cosine_decay
-
-# Pretraining settings (for state prediction task)
-pretrain:
-  epochs: 500
-  batch_size: 1024
-  learning_rate: 0.001
-  num_rollouts: 100
-  rollout_steps: 1000
-```
-
 ### Residual Dynamics (`configs/residual_dynamics.yaml`)
 
 ```yaml
@@ -625,7 +273,6 @@ This section provides guidance on tuning the most important parameters for diffe
 |------|-------------------|-------|
 | State Hovering | 100-300 | Default 200 is good balance |
 | Trajectory Tracking | 200-500 | Default 300 for stable tracking |
-| Vision Hovering | 200-400 | Default 300, reduce if OOM |
 | Residual Dynamics | N/A | Controlled by `batch_size` instead |
 
 **Tuning Guidelines:**
@@ -637,7 +284,6 @@ This section provides guidance on tuning the most important parameters for diffe
 **Memory Estimation:**
 ```
 GPU Memory (GB) ≈ num_envs * 0.01 GB (rough estimate for state tasks)
-GPU Memory (GB) ≈ num_envs * 0.02 GB (for vision tasks with larger observations)
 ```
 
 ### 2. `max_epochs` - Maximum Training Epochs
@@ -654,7 +300,6 @@ GPU Memory (GB) ≈ num_envs * 0.02 GB (for vision tasks with larger observation
 |------|-------------------|-------|
 | State Hovering | 100-300 | Default 200 typically sufficient |
 | Trajectory Tracking | 200-500 | Default 300 for complex trajectories |
-| Vision Hovering | 150-300 | Default 200 after pretraining |
 | Residual Dynamics | 50-200 | Default 100 for ensemble |
 
 **Tuning Guidelines:**
@@ -682,7 +327,6 @@ The training scripts automatically detect convergence and may stop before `max_e
 |------|-------------------|---------|-------|
 | State Hovering | 0.001-0.01 | 0.005 | Moderate learning rate works well |
 | Trajectory Tracking | 0.0005-0.002 | 0.001 | Lower for stable tracking |
-| Vision Hovering | 0.0005-0.002 | 0.001 | Requires lower rate due to complexity |
 | Residual Dynamics | 0.005-0.02 | 0.01 | Supervised learning tolerates higher rates |
 
 **Tuning Guidelines:**
@@ -727,8 +371,7 @@ This provides:
 | Task | Recommended Architecture | Default | Notes |
 |------|-------------------------|---------|-------|
 | State Hovering | [256, 256] or [512, 512] | [512, 512] | 2 layers sufficient |
-| Trajectory Tracking | [256, 256] or [512, 512] | [512, 512] | Similar to hovering |
-| Vision Hovering | [512, 512] or [512, 512, 256] | [512, 512] | May need more capacity |
+| Trajectory Tracking | [256, 256] or [512, 512] | [512, 512] | 2 layers sufficient |
 | Residual Dynamics | N/A | N/A | Fixed architecture in code |
 
 **Common Architectures:**
@@ -809,23 +452,6 @@ The relationship between network size and training data (controlled by `num_envs
 - Default: 0.1
 - Range: 0.0-0.5
 - Higher values increase robustness but difficulty
-
-#### Vision-Based Hovering
-
-**Number of States (`num_last_quad_states`):**
-- Default: 15
-- Range: 5-30
-- More states provide more temporal context but increase observation size
-
-**Frame Skipping (`skip_frames`):**
-- Default: 3
-- Range: 1-5
-- Higher skipping reduces temporal correlation but may miss fast dynamics
-
-**Pretraining:**
-- Always complete pretraining phase (500 epochs)
-- Use lower learning rate (0.001) for pretraining
-- Increase `num_rollouts` for more diverse pretraining data
 
 #### Residual Dynamics
 
@@ -1156,7 +782,6 @@ def validate_config(config_path):
 configs = [
     'configs/state_hovering.yaml',
     'configs/traj_tracking.yaml',
-    'configs/vision_hovering.yaml',
     'configs/residual_dynamics.yaml',
 ]
 
