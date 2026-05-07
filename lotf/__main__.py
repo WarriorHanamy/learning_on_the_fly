@@ -24,6 +24,7 @@ import sys
 from typing import Sequence
 
 from lotf import LOTF_ROOT
+from lotf.forward_model_config import SETTING_ORDER
 
 
 def get_version() -> str:
@@ -139,7 +140,19 @@ Examples:
         "--checkpoint",
         type=str,
         default="checkpoints/policy/traj_tracking_params",
-        help="Path to save the trained policy checkpoint",
+        help="Path to save the trained policy checkpoint or base stem for --setting all",
+    )
+    track_parser.add_argument(
+        "--setting",
+        choices=["all", *SETTING_ORDER],
+        default="all",
+        help="Forward model setting to train (default: all)",
+    )
+    track_parser.add_argument(
+        "--residual-checkpoint",
+        type=str,
+        default="checkpoints/residual_dynamics/residual_params",
+        help="Residual dynamics checkpoint for resacc/full settings",
     )
     track_parser.add_argument(
         "--trajectory-output",
@@ -238,6 +251,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.config,
             "--checkpoint",
             args.checkpoint,
+            "--setting",
+            args.setting,
+            "--residual-checkpoint",
+            args.residual_checkpoint,
         ]
         if args.trajectory_output:
             train_argv.extend(["--trajectory-output", args.trajectory_output])

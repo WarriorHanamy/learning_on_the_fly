@@ -22,22 +22,34 @@ from scipy.spatial.transform import Rotation
 
 from lotf import LOTF_ROOT
 from lotf.envs.env_base import rollout
+from lotf.forward_model_config import (
+    SETTING_ORDER,
+    checkpoint_name_for_setting,
+    get_forward_model_config,
+)
 from lotf.traj_tracking_setup import (
     TrajTrackingConfig,
     build_traj_tracking_env,
     load_policy_fn,
+    load_residual_params,
 )
 
 
-def load_policy_and_env(checkpoint_path: str, config: TrajTrackingConfig):
+def load_policy_and_env(
+    checkpoint_path: str,
+    config: TrajTrackingConfig,
+    residual_checkpoint: str,
+):
     """Load a trained policy checkpoint and recreate its environment."""
     env = build_traj_tracking_env(config, with_log_wrapper=False, with_vec_wrapper=False)
 
     policy_fn = load_policy_fn(checkpoint_path, config, env)
 
-    # load residual params (silently fall back to empty dict if dummy_params missing)
-    residual_path = LOTF_ROOT / "checkpoints" / "residual_dynamics" / "dummy_params"
+    if config.forward_model_config.enable_residual_acceleration:
+        residual_params = load_residual_params(residual_checkpoint)
+        return policy_fn, env, residual_params
 
+    residual_path = LOTF_ROOT / "checkpoints" / "residual_dynamics" / "dummy_params"
     if residual_path.exists():
         residual_params = PyTreeCheckpointer().restore(str(residual_path))
     else:
@@ -297,7 +309,25 @@ Examples:
         "--checkpoint",
         type=str,
         default=None,
-        help="Path to policy checkpoint (auto-detected if omitted)",
+        help="Path to policy checkpoint (auto-detected from --setting if omitted)",
+    )
+    parser.add_argument(
+        "--setting",
+        choices=SETTING_ORDER,
+        default="full",
+        help="Standard setting to play when checkpoint is auto-detected (default: full)",
+    )
+    parser.add_argument(
+        "--checkpoint-stem",
+        type=str,
+        default="checkpoints/policy/traj_tracking_params",
+        help="Base checkpoint stem for setting-based auto-detection",
+    )
+    parser.add_argument(
+        "--residual-checkpoint",
+        type=str,
+        default="checkpoints/residual_dynamics/residual_params",
+        help="Residual dynamics checkpoint for resacc/full playback",
     )
     parser.add_argument(
         "--config",
@@ -322,23 +352,37 @@ Examples:
 
     config_path = args.config or "configs/traj_tracking.yaml"
     config = TrajTrackingConfig.from_yaml(config_path)
+    config.forward_model_config = get_forward_model_config(args.setting)
 
     checkpoint = args.checkpoint
     if checkpoint is None:
-        ckpt_dir = LOTF_ROOT / "checkpoints" / "policy"
+        expected = checkpoint_name_for_setting(LOTF_ROOT / args.checkpoint_stem, args.setting)
         candidates = sorted(
-            ckpt_dir.glob("traj_tracking_params*"),
+            expected.parent.glob(f"{expected.name}*"),
             key=lambda p: p.stat().st_mtime,
             reverse=True,
         )
         if not candidates:
-            print(f"Error: No checkpoints found for {args.env_type} in {ckpt_dir}", file=sys.stderr)
+            print(
+                f"Error: No {args.setting} checkpoints found. "
+                f"Expected pattern: {expected.parent / (expected.name + '*')}",
+                file=sys.stderr,
+            )
+            print(f"Train it with: uv run train track --setting {args.setting}", file=sys.stderr)
             return 1
         checkpoint = str(candidates[0])
         print(f"Auto-detected checkpoint: {checkpoint}")
 
     print(f"Loading policy from: {checkpoint}")
-    policy_fn, env, residual_params = load_policy_and_env(checkpoint, config)
+    try:
+        policy_fn, env, residual_params = load_policy_and_env(
+            checkpoint,
+            config,
+            args.residual_checkpoint,
+        )
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
     print("Running rollout...")
     positions, velocities, eulers, dt, ref_positions = run_rollout(

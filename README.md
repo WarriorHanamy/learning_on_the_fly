@@ -47,9 +47,18 @@ uv run train --list-configs
 uv run train residual --dataset data.csv
 uv run train residual --config configs/residual_dynamics.yaml --dataset data.csv
 
-# Trajectory tracking
+# Trajectory tracking: default trains all four standard settings
 uv run train track
 uv run train track --config configs/traj_tracking.yaml
+uv run train track --setting full
+
+# Benchmark comparison: default discovers all four standard checkpoints
+uv run eval track
+uv run eval track --checkpoint checkpoints/policy/traj_tracking_params__full
+
+# Interactive playback: defaults to latest full checkpoint
+uv run play track
+uv run play track --setting nominal
 
 # Subcommand help
 uv run train track --help

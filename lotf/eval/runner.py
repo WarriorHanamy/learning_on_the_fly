@@ -13,6 +13,7 @@ import numpy as np
 from flax.core import FrozenDict
 
 from lotf.envs.env_base import EnvTransition, rollout
+from lotf.forward_model_config import ForwardModelConfig
 from lotf.objects.reference_traj_obj import TrajColumns
 
 
@@ -34,6 +35,27 @@ class BenchmarkMetrics:
             f"position_rmse         : {self.position_rmse:.4f} [m]\n"
             f"velocity_rmse         : {self.velocity_rmse:.4f} [m/s]"
         )
+
+
+@dataclass
+class BenchmarkPolicySpec:
+    """Policy input for a benchmark suite run."""
+
+    label: str
+    checkpoint_path: str
+    train_forward_model_config: ForwardModelConfig
+    policy_fn: object
+
+
+@dataclass
+class BenchmarkRunResult:
+    """Result for one policy in a benchmark suite."""
+
+    label: str
+    checkpoint_path: str
+    train_forward_model_config: ForwardModelConfig
+    metrics: BenchmarkMetrics
+    transitions: EnvTransition
 
 
 def _compute_episode_lengths(terminated: jnp.ndarray, truncated: jnp.ndarray) -> jnp.ndarray:
@@ -122,6 +144,17 @@ def run_benchmark(
     """
     key = jax.random.key(seed)
     rollout_keys = jax.random.split(key, num_rollouts)
+    return run_benchmark_with_keys(env, policy_fn, residual_params, ref_traj, rollout_keys)
+
+
+def run_benchmark_with_keys(
+    env,
+    policy_fn,
+    residual_params: FrozenDict,
+    ref_traj: jnp.ndarray,
+    rollout_keys: jax.Array,
+) -> tuple[BenchmarkMetrics, EnvTransition]:
+    """Run benchmark with caller-provided rollout keys for fair comparisons."""
     parallel_rollout = jax.vmap(rollout, in_axes=(None, 0, None, None))
     transitions = parallel_rollout(env, rollout_keys, policy_fn, residual_params)
 
@@ -152,3 +185,36 @@ def run_benchmark(
     )
 
     return metrics, transitions
+
+
+def run_benchmark_suite(
+    env,
+    policy_specs: list[BenchmarkPolicySpec],
+    residual_params: FrozenDict,
+    ref_traj: jnp.ndarray,
+    num_rollouts: int = 20,
+    seed: int = 0,
+) -> list[BenchmarkRunResult]:
+    """Run multiple policies on the same benchmark seed and initial conditions."""
+    key = jax.random.key(seed)
+    rollout_keys = jax.random.split(key, num_rollouts)
+
+    results = []
+    for spec in policy_specs:
+        metrics, transitions = run_benchmark_with_keys(
+            env,
+            spec.policy_fn,
+            residual_params,
+            ref_traj,
+            rollout_keys,
+        )
+        results.append(
+            BenchmarkRunResult(
+                label=spec.label,
+                checkpoint_path=spec.checkpoint_path,
+                train_forward_model_config=spec.train_forward_model_config,
+                metrics=metrics,
+                transitions=transitions,
+            )
+        )
+    return results

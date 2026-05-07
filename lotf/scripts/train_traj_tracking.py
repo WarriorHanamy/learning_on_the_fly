@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -30,10 +31,16 @@ from orbax.checkpoint import PyTreeCheckpointer
 from lotf import LOTF_ROOT, resolve_path
 from lotf.algos import bptt
 from lotf.envs import TrajTrackingStateEnv
+from lotf.forward_model_config import (
+    SETTING_ORDER,
+    checkpoint_name_for_setting,
+    get_forward_model_config,
+)
 from lotf.traj_tracking_setup import (
     TrajTrackingConfig,
     build_policy_train_state,
     build_traj_tracking_env,
+    load_residual_params,
 )
 
 
@@ -47,6 +54,16 @@ def load_dummy_residual_params() -> Any:
     path = LOTF_ROOT / "checkpoints" / "residual_dynamics" / "dummy_params"
     ckptr = PyTreeCheckpointer()
     return ckptr.restore(path)
+
+
+def load_residual_params_for_setting(setting_name: str, residual_checkpoint: str) -> Any:
+    """Load the residual source required by a standard training setting."""
+    if setting_name in {"nominal", "innerloop"}:
+        print("Loading dummy residual dynamics parameters...")
+        return load_dummy_residual_params()
+
+    print(f"Loading residual dynamics checkpoint: {residual_checkpoint}")
+    return load_residual_params(residual_checkpoint)
 
 
 def get_unique_checkpoint_path(base_path: Path) -> Path:
@@ -64,14 +81,15 @@ def get_unique_checkpoint_path(base_path: Path) -> Path:
     return new_path
 
 
-def save_checkpoint(output_path: str, params: Any) -> None:
-    """Save policy parameters to a unique checkpoint path."""
+def save_checkpoint_return_path(output_path: str, params: Any) -> Path:
+    """Save policy parameters and return the actual checkpoint path."""
     path = get_unique_checkpoint_path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
     ckptr = PyTreeCheckpointer()
     ckptr.save(str(path), params)
     print(f"Policy saved successfully to: {path}")
+    return path
 
 
 def export_trajectory(traj: Any, output_path: str) -> None:
@@ -108,7 +126,21 @@ Examples:
         "--checkpoint",
         type=str,
         default="checkpoints/policy/traj_tracking_params",
-        help="Path to save the trained policy checkpoint",
+        help="Path to save the trained policy checkpoint or base stem for --setting all",
+    )
+
+    parser.add_argument(
+        "--setting",
+        choices=["all", *SETTING_ORDER],
+        default="all",
+        help="Forward model setting to train (default: all)",
+    )
+
+    parser.add_argument(
+        "--residual-checkpoint",
+        type=str,
+        default="checkpoints/residual_dynamics/residual_params",
+        help="Residual dynamics checkpoint for resacc/full settings",
     )
 
     parser.add_argument(
@@ -119,6 +151,114 @@ Examples:
     )
 
     return parser.parse_args()
+
+
+def _print_forward_model(setting_name: str, config: TrajTrackingConfig) -> None:
+    fwd = config.forward_model_config
+    print(f"Training setting: {setting_name}")
+    print("Forward model:")
+    print(f"  enable_residual_acceleration = {str(fwd.enable_residual_acceleration).lower()}")
+    print(f"  enable_inner_loop_dynamics = {str(fwd.enable_inner_loop_dynamics).lower()}")
+
+
+def _train_one_setting(
+    base_config: TrajTrackingConfig,
+    setting_name: str,
+    checkpoint_base: str,
+    residual_checkpoint: str,
+) -> dict[str, Any]:
+    config = replace(
+        base_config,
+        forward_model_config=get_forward_model_config(setting_name),
+    )
+
+    print("\n" + "=" * 72)
+    _print_forward_model(setting_name, config)
+    print(f"Initializing with seed: {config.seed}")
+    key = jax.random.key(config.seed)
+    key_init, key_bptt = jax.random.split(key, 2)
+
+    print("Creating environment...")
+    env = build_traj_tracking_env(config)
+
+    action_dim = env.action_space.shape[0]
+    obs_dim = env.observation_space.shape[0]
+    print("Environment info:")
+    print(f"  action_dim: {action_dim}")
+    print(f"  obs_dim: {obs_dim}")
+    print(f"  ref_traj_name: {config.ref_traj_name}")
+    print(f"  max_steps_in_episode: {env.max_steps_in_episode}")
+
+    print("Creating policy network...")
+    train_state = build_policy_train_state(config, env, key_init)
+
+    try:
+        residual_params = load_residual_params_for_setting(setting_name, residual_checkpoint)
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        raise
+
+    print(f"Initializing {config.num_envs} parallel environments...")
+    key_bptt, key_ = jax.random.split(key_bptt)
+    key_reset = jax.random.split(key_, config.num_envs)
+    init_env_state, init_obs = env.reset(key_reset, None)
+
+    print(f"\nStarting training for {config.max_epochs} epochs...")
+    print("-" * 50)
+
+    time_start = time.time()
+    res_dict = bptt.train(
+        env,
+        init_env_state,
+        init_obs,
+        train_state,
+        num_epochs=config.max_epochs,
+        num_steps_per_epoch=env.max_steps_in_episode,
+        num_envs=config.num_envs,
+        res_model_params=residual_params,
+        key=key_bptt,
+    )
+    train_time_s = time.time() - time_start
+
+    print("-" * 50)
+    print(f"Compile + Training time: {train_time_s:.2f}s")
+
+    losses = res_dict["metrics"]
+    returns = -losses
+    final_reward = float(returns[-1])
+    print(f"Final reward: {final_reward:.2f}")
+
+    checkpoint_path = checkpoint_name_for_setting(checkpoint_base, setting_name)
+    trained_policy_params = res_dict["runner_state"].train_state.params
+    actual_checkpoint = save_checkpoint_return_path(str(checkpoint_path), trained_policy_params)
+
+    return {
+        "setting": setting_name,
+        "resacc": config.forward_model_config.enable_residual_acceleration,
+        "innerloop": config.forward_model_config.enable_inner_loop_dynamics,
+        "final_reward": final_reward,
+        "train_time_s": train_time_s,
+        "checkpoint": str(actual_checkpoint),
+    }
+
+
+def _print_training_summary(rows: list[dict[str, Any]]) -> None:
+    print("\nTraining summary:")
+    header = (
+        f"{'setting':<10} {'resacc':<6} {'innerloop':<9} "
+        f"{'final_reward':>12} {'train_time_s':>12} checkpoint"
+    )
+    print(header)
+    print("-" * len(header))
+    for row in rows:
+        print(
+            f"{row['setting']:<10} "
+            f"{str(row['resacc'])[0]:<6} "
+            f"{str(row['innerloop'])[0]:<9} "
+            f"{row['final_reward']:>12.2f} "
+            f"{row['train_time_s']:>12.2f} "
+            f"{row['checkpoint']}"
+        )
 
 
 def main() -> int:
@@ -139,59 +279,22 @@ def main() -> int:
         print(f"Error parsing config: {e}", file=sys.stderr)
         return 1
 
-    print(f"Initializing with seed: {config.seed}")
-    key = jax.random.key(config.seed)
-    key_init, key_bptt = jax.random.split(key, 2)
+    settings = SETTING_ORDER if args.setting == "all" else [args.setting]
+    rows = []
+    for setting_name in settings:
+        try:
+            rows.append(
+                _train_one_setting(
+                    config,
+                    setting_name,
+                    args.checkpoint,
+                    args.residual_checkpoint,
+                )
+            )
+        except FileNotFoundError:
+            return 1
 
-    print("Creating environment...")
-    env = build_traj_tracking_env(config)
-
-    action_dim = env.action_space.shape[0]
-    obs_dim = env.observation_space.shape[0]
-    print("Environment info:")
-    print(f"  action_dim: {action_dim}")
-    print(f"  obs_dim: {obs_dim}")
-    print(f"  ref_traj_name: {config.ref_traj_name}")
-    print(f"  max_steps_in_episode: {env.max_steps_in_episode}")
-
-    print("Creating policy network...")
-    train_state = build_policy_train_state(config, env, key_init)
-
-    print("Loading dummy residual dynamics parameters...")
-    dummy_residual_params = load_dummy_residual_params()
-
-    print(f"Initializing {config.num_envs} parallel environments...")
-    key_bptt, key_ = jax.random.split(key_bptt)
-    key_reset = jax.random.split(key_, config.num_envs)
-    init_env_state, init_obs = env.reset(key_reset, None)
-
-    print(f"\nStarting training for {config.max_epochs} epochs...")
-    print("-" * 50)
-
-    time_start = time.time()
-    res_dict = bptt.train(
-        env,
-        init_env_state,
-        init_obs,
-        train_state,
-        num_epochs=config.max_epochs,
-        num_steps_per_epoch=env.max_steps_in_episode,
-        num_envs=config.num_envs,
-        res_model_params=dummy_residual_params,
-        key=key_bptt,
-    )
-    time_train_compile = time.time() - time_start
-
-    print("-" * 50)
-    print(f"Compile + Training time: {time_train_compile:.2f}s")
-
-    losses = res_dict["metrics"]
-    returns = -losses
-    final_reward = returns[-1]
-    print(f"Final reward: {final_reward:.2f}")
-
-    trained_policy_params = res_dict["runner_state"].train_state.params
-    save_checkpoint(args.checkpoint, trained_policy_params)
+    _print_training_summary(rows)
 
     if args.trajectory_output:
         print(f"\nExporting trajectory to: {args.trajectory_output}")
