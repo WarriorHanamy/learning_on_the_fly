@@ -75,7 +75,7 @@ class ResidualDynamicsConfig:
     weight_init_scale: float = 1.0
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "ResidualDynamicsConfig":
+    def from_yaml(cls, path: str | Path) -> ResidualDynamicsConfig:
         """Load configuration from a YAML file.
 
         Args:
@@ -221,14 +221,14 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    # Train with default configuration
-    uv run python -m lotf.scripts.train_residual --dataset examples/residual_dynamics/example_dataset.csv
+    # Train with default dataset and configuration
+    uv run python -m lotf.scripts.train_residual
 
-    # Train with custom config
-    uv run python -m lotf.scripts.train_residual --config my_config.yaml --dataset my_data.csv
+    # Train with custom dataset
+    uv run python -m lotf.scripts.train_residual --dataset my_data.csv
 
-    # Save to custom location
-    uv run python -m lotf.scripts.train_residual --dataset data.csv --output checkpoints/my_model
+    # Train with custom config and output
+    uv run python -m lotf.scripts.train_residual --config my_config.yaml --dataset my_data.csv --output checkpoints/my_model
         """,
     )
 
@@ -242,8 +242,8 @@ Examples:
     parser.add_argument(
         "--dataset",
         type=str,
-        required=True,
-        help="Path to CSV dataset file (required)",
+        default="examples/residual_dynamics/example_dataset.csv",
+        help="Path to CSV dataset file (default: examples/residual_dynamics/example_dataset.csv)",
     )
 
     parser.add_argument(

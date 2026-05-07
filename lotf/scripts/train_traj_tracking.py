@@ -117,7 +117,7 @@ class TrajTrackingConfig:
     optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "TrajTrackingConfig":
+    def from_yaml(cls, path: str | Path) -> TrajTrackingConfig:
         """Load configuration from a YAML file.
 
         Args:

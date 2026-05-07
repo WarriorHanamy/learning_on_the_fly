@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import NamedTuple
 import yaml
 
@@ -7,13 +9,14 @@ import jax.numpy as jnp
 class AugmentationParams(NamedTuple):
     """
     Parameters for calculating aerodynamic and motor-related residuals.
-    
+
     Attributes:
         fx, fy, fz: polynomial coefficients for force residuals
         tx, ty, tz: polynomial coefficients for torque residuals
         scale_force: global scaling factor for force residuals
         scale_torque: global scaling factor for torque residuals
     """
+
     fx: jnp.ndarray
     fy: jnp.ndarray
     fz: jnp.ndarray
@@ -24,7 +27,7 @@ class AugmentationParams(NamedTuple):
     scale_torque: float
 
     @classmethod
-    def from_yaml(cls, path: str) -> "AugmentationParams":
+    def from_yaml(cls, path: str) -> AugmentationParams:
         """Loads augmentation parameters from a yaml file"""
         with open(path) as stream:
             try:
@@ -34,7 +37,7 @@ class AugmentationParams(NamedTuple):
                 raise exc
 
     @classmethod
-    def from_dict(cls, config: dict) -> "AugmentationParams":
+    def from_dict(cls, config: dict) -> AugmentationParams:
         """Parses configuration dictionary into specific coefficient arrays"""
         # coefficient extraction for x-axis force
         fx = jnp.array(
@@ -124,12 +127,8 @@ def compute_residuals(state, params: AugmentationParams):
     ang_y = 0.0
 
     # build polynomial features for force
-    poly_fx = jnp.array(
-        [vx, m_mean, ang_y, vx * m_mean, vx * jnp.abs(vx), vx**3]
-    )
-    poly_fy = jnp.array(
-        [vy, m_mean, ang_x, vy * m_mean, vy * jnp.abs(vy), vy**3]
-    )
+    poly_fx = jnp.array([vx, m_mean, ang_y, vx * m_mean, vx * jnp.abs(vx), vx**3])
+    poly_fy = jnp.array([vy, m_mean, ang_x, vy * m_mean, vy * jnp.abs(vy), vy**3])
     poly_fz = jnp.array(
         [
             1,
@@ -154,10 +153,8 @@ def compute_residuals(state, params: AugmentationParams):
     delta_fx = jnp.dot(poly_fx, params.fx)
     delta_fy = jnp.dot(poly_fy, params.fy)
     delta_fz = jnp.dot(poly_fz, params.fz)
-    
-    residual_acceleration = params.scale_force * jnp.array(
-        [delta_fx, delta_fy, delta_fz]
-    )
+
+    residual_acceleration = params.scale_force * jnp.array([delta_fx, delta_fy, delta_fz])
     # transform residual acceleration from body to world frame
     residual_acceleration = state.R @ residual_acceleration
 
@@ -165,9 +162,7 @@ def compute_residuals(state, params: AugmentationParams):
     delta_tx = jnp.dot(poly_tx, params.tx)
     delta_ty = jnp.dot(poly_ty, params.ty)
     delta_tz = jnp.dot(poly_tz, params.tz)
-    
-    residual_torque = params.scale_torque * jnp.array(
-        [delta_tx, delta_ty, delta_tz]
-    )
+
+    residual_torque = params.scale_torque * jnp.array([delta_tx, delta_ty, delta_tz])
 
     return residual_acceleration, residual_torque

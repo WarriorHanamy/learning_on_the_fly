@@ -187,7 +187,8 @@ Examples:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    uv run train residual --dataset examples/residual_dynamics/example_dataset.csv
+    uv run train residual
+    uv run train residual --dataset my_data.csv
     uv run train residual --config configs/residual_dynamics.yaml --dataset data.csv
         """,
     )
@@ -200,8 +201,8 @@ Examples:
     residual_parser.add_argument(
         "--dataset",
         type=str,
-        required=True,
-        help="Path to CSV dataset file (required)",
+        default="examples/residual_dynamics/example_dataset.csv",
+        help="Path to CSV dataset file (default: examples/residual_dynamics/example_dataset.csv)",
     )
     residual_parser.add_argument(
         "--output",

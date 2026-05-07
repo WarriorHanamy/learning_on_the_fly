@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import jax
 import jax.numpy as jnp
 import jax_dataclasses as jdc
@@ -20,13 +22,11 @@ class WorldBox:
     max: jnp.array = field_jnp([10.0, 10.0, 10.0])
 
     def contains(self, x: jnp.array) -> jax.Array:
-        is_inside = jnp.logical_and(
-            jnp.all(x >= self.min), jnp.all(x <= self.max)
-        )
+        is_inside = jnp.logical_and(jnp.all(x >= self.min), jnp.all(x <= self.max))
         return is_inside
 
     @classmethod
-    def from_yaml_entry(cls, entry: list) -> "WorldBox":
+    def from_yaml_entry(cls, entry: list) -> WorldBox:
         # noinspection PyArgumentList
         return cls(
             min=jnp.array(entry[:3]),

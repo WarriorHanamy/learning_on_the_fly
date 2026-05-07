@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import Enum
 from typing import Union
 import numpy as np
@@ -6,7 +8,6 @@ import jax.numpy as jnp
 import jax_dataclasses as jdc
 
 from lotf import LOTF_PATH
-
 
 
 class RefTrajNames(Enum):
@@ -37,7 +38,7 @@ class ReferenceTraj:
     vel_bounds: jnp.array
 
     @classmethod
-    def from_name(cls, name: Union[str, RefTrajNames]) -> "ReferenceTraj":
+    def from_name(cls, name: Union[str, RefTrajNames]) -> ReferenceTraj:
 
         if isinstance(name, RefTrajNames):
             name = name.value
@@ -52,34 +53,34 @@ class ReferenceTraj:
             raise ValueError(f"Unknown track name: {name}")
 
     @classmethod
-    def from_csv(cls, path: str) -> "ReferenceTraj":
+    def from_csv(cls, path: str) -> ReferenceTraj:
 
         ref_traj = jnp.array(np.loadtxt(path))
-        assert ref_traj.shape[1] == 30, f"Expected 30 columns in trajectory, got {ref_traj.shape[1]}"
+        assert ref_traj.shape[1] == 30, (
+            f"Expected 30 columns in trajectory, got {ref_traj.shape[1]}"
+        )
         num_waypoints = ref_traj.shape[0]
 
         # compute position and velocity bounds
-        pos_bounds = jnp.array([
-            jnp.min(ref_traj[:, TrajColumns.POS.slice], axis=0),
-            jnp.max(ref_traj[:, TrajColumns.POS.slice], axis=0)
-        ])
-        vel_bounds = jnp.array([
-            jnp.min(ref_traj[:, TrajColumns.VEL.slice], axis=0),
-            jnp.max(ref_traj[:, TrajColumns.VEL.slice], axis=0)
-        ])
-
-        # noinspection PyArgumentList
-        return cls(
-            ref_traj,
-            num_waypoints,
-            pos_bounds,
-            vel_bounds
+        pos_bounds = jnp.array(
+            [
+                jnp.min(ref_traj[:, TrajColumns.POS.slice], axis=0),
+                jnp.max(ref_traj[:, TrajColumns.POS.slice], axis=0),
+            ]
+        )
+        vel_bounds = jnp.array(
+            [
+                jnp.min(ref_traj[:, TrajColumns.VEL.slice], axis=0),
+                jnp.max(ref_traj[:, TrajColumns.VEL.slice], axis=0),
+            ]
         )
 
-    @classmethod
-    def default_traj(cls) -> "ReferenceTraj":
-        cls.from_name(RefTrajNames.CIRCLE)
+        # noinspection PyArgumentList
+        return cls(ref_traj, num_waypoints, pos_bounds, vel_bounds)
 
+    @classmethod
+    def default_traj(cls) -> ReferenceTraj:
+        cls.from_name(RefTrajNames.CIRCLE)
 
 
 class TrajColumns(Enum):

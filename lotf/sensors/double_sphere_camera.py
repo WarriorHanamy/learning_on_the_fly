@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import Enum
 from typing import Union
 import yaml
@@ -13,6 +15,7 @@ from lotf import LOTF_PATH
 
 class CameraNames(Enum):
     """Enumeration of available camera configuration names"""
+
     EXAMPLE_CAM = "example_cam"
 
 
@@ -23,11 +26,12 @@ EXAMPLE_CAM = LOTF_PATH + "/sensors/camera_files/example_cam.yaml"
 class CameraState(CustomPyTree):
     """
     Represents the extrinsic state of a camera.
-    
+
     Attributes:
         p_CW: world position in camera frame
         R_CW: rotation matrix from world to camera frame
     """
+
     p_CW: jnp.ndarray = field_jnp([0.0, 0.0, 0.0])
     R_CW: jnp.ndarray = field_jnp(jnp.eye(3))
 
@@ -59,7 +63,7 @@ class DoubleSphereCamera:
         self.height = height
 
         # default pitch angle
-        self.pitch = 30.
+        self.pitch = 30.0
 
     @property
     def pitch(self):
@@ -71,16 +75,14 @@ class DoubleSphereCamera:
         """Sets pitch and updates the camera-to-body rotation matrix"""
         self._pitch = value
         # camera points in x direction of quad frame
-        rot_CprimeB = Rotation.from_euler(
-            "XYZ", jnp.array([90, 0, 90]), degrees=True
-        )
+        rot_CprimeB = Rotation.from_euler("XYZ", jnp.array([90, 0, 90]), degrees=True)
         # apply pitch rotation
         rot_cam = Rotation.from_euler("Y", jnp.array(self._pitch), degrees=True)
         # combine rotations for camera to body frame
         self.rot_CB = rot_CprimeB * rot_cam
 
     @classmethod
-    def from_name(cls, name: Union[str, CameraNames]) -> "DoubleSphereCamera":
+    def from_name(cls, name: Union[str, CameraNames]) -> DoubleSphereCamera:
         """Instantiates a camera using a predefined name or enum"""
         if isinstance(name, CameraNames):
             name = name.value
@@ -91,7 +93,7 @@ class DoubleSphereCamera:
             raise ValueError(f"Unknown camera name: {name}")
 
     @classmethod
-    def from_yaml(cls, path: str) -> "DoubleSphereCamera":
+    def from_yaml(cls, path: str) -> DoubleSphereCamera:
         """Loads camera configuration from a yaml file"""
         with open(path) as stream:
             try:
@@ -101,7 +103,7 @@ class DoubleSphereCamera:
                 raise exc
 
     @classmethod
-    def from_dict(cls, config: dict) -> "DoubleSphereCamera":
+    def from_dict(cls, config: dict) -> DoubleSphereCamera:
         """Parses configuration dictionary into camera parameters"""
         return cls(
             xi=config["cam0"]["intrinsics"][0],
@@ -114,9 +116,7 @@ class DoubleSphereCamera:
             height=config["cam0"]["resolution"][1],
         )
 
-    def project_points(
-        self, points: jax.Array, camera_state: CameraState
-    ) -> jax.Array:
+    def project_points(self, points: jax.Array, camera_state: CameraState) -> jax.Array:
         """
         Projects 3d world points onto the 2d image plane.
 
@@ -150,7 +150,7 @@ class DoubleSphereCamera:
         )
         # calculate max angle/distance validity
         w2 = (w1 + self.xi) / jnp.sqrt(2 * w1 * self.xi + self.xi**2 + 1)
-        
+
         predicates = jnp.array(
             [
                 # check if point is in front of the camera
@@ -172,9 +172,7 @@ class DoubleSphereCamera:
 
         return projected_points
 
-    def update_pose(
-        self, state: CameraState, p_WB: jax.Array, R_WB: jax.Array
-    ) -> CameraState:
+    def update_pose(self, state: CameraState, p_WB: jax.Array, R_WB: jax.Array) -> CameraState:
         """
         Updates the camera extrinsic state based on the body pose in world frame.
         """

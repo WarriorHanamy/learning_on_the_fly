@@ -116,7 +116,7 @@ class StateHoveringConfig:
     optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "StateHoveringConfig":
+    def from_yaml(cls, path: str | Path) -> StateHoveringConfig:
         """Load configuration from a YAML file.
 
         Args:

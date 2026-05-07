@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import numpy as np
 import yaml
@@ -167,7 +169,7 @@ class Quadrotor:
             self.compute_res_fn = get_residual_dyn_model_apply_fn()
 
     @classmethod
-    def from_name(cls, name: str, dyn_config=None) -> "Quadrotor":
+    def from_name(cls, name: str, dyn_config=None) -> Quadrotor:
         """Loads quadrotor parameters by name from the quadrotor_files directory."""
         dirname = os.path.dirname(__file__)
         filename = os.path.join(dirname, "quadrotor_files/")
@@ -175,7 +177,7 @@ class Quadrotor:
         return cls.from_yaml(filename, dyn_config)
 
     @classmethod
-    def from_yaml(cls, path: str, dyn_config=None) -> "Quadrotor":
+    def from_yaml(cls, path: str, dyn_config=None) -> Quadrotor:
         """Loads quadrotor parameters from a specific YAML file path."""
         with open(path) as stream:
             try:
@@ -185,14 +187,14 @@ class Quadrotor:
                 raise exc
 
     @classmethod
-    def example_quadrotor(cls) -> "Quadrotor":
+    def example_quadrotor(cls) -> Quadrotor:
         """Convenience method to load the default example quadrotor."""
         dirname = os.path.dirname(__file__)
         filename = os.path.join(dirname, "quadrotor_files/example_quad.yaml")
         return cls.from_yaml(filename)
 
     @classmethod
-    def from_dict(cls, config: dict, dyn_config=None) -> "Quadrotor":
+    def from_dict(cls, config: dict, dyn_config=None) -> Quadrotor:
         """Constructs a Quadrotor object from a configuration dictionary."""
         return cls(
             drone_name=config["name"],
