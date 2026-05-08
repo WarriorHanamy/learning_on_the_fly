@@ -16,3 +16,4 @@ root_tasks.json
 completed-tdd-archives/
 _tmp/
 .opencode/
+outputs/
