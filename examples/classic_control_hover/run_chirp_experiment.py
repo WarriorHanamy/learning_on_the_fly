@@ -27,7 +27,7 @@ from .chirp import chirp_vector, default_chirp_segments, segment_id
 from .controller import se3_hover_controller
 from .plotting import plot_all
 from .recorder import append_log, init_log, save_log
-from .schema import ExperimentConfig, HoverTarget
+from .schema import ExperimentConfig, HoverTarget, OUTPUT_DIR
 from .sim_adapter import LotfAdapterConfig, SimAdapter
 
 
@@ -36,7 +36,7 @@ def _build_default_config() -> ExperimentConfig:
     return ExperimentConfig(
         target=HoverTarget(p_world=(0.0, 0.0, 1.5), yaw_rad=0.0),
         chirp_segments=default_chirp_segments(),
-        output_dir="outputs/classic_control_hover",
+        output_dir=OUTPUT_DIR,
     )
 
 
@@ -169,7 +169,7 @@ Examples:
     parser.add_argument(
         "--output",
         type=str,
-        default="outputs/classic_control_hover",
+        default=OUTPUT_DIR,
         help="Output directory for logs and plots",
     )
     parser.add_argument(

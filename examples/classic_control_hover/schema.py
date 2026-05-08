@@ -73,7 +73,12 @@ BODY_RATE_ORDER = ("p", "q", "r")  # [rad/s] in body frame
 # time       : s
 
 # ============================================================================
-# 7. Data contracts  —  backend-agnostic dataclasses
+# 7. I/O
+# ============================================================================
+OUTPUT_DIR = "outputs/classic_control_hover"
+
+# ============================================================================
+# 8. Data contracts  —  backend-agnostic dataclasses
 # ============================================================================
 
 
@@ -116,7 +121,7 @@ class ExperimentConfig:
     target: HoverTarget = field(default_factory=HoverTarget)
     gains: ControllerGains = field(default_factory=ControllerGains)
     chirp_segments: list[ChirpSegment] = field(default_factory=list)
-    output_dir: str = "outputs/classic_control_hover"
+    output_dir: str = OUTPUT_DIR
 
 
 @dataclass
