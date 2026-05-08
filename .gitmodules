@@ -4,3 +4,6 @@
 [submodule "deps/viser"]
 	path = deps/viser
 	url = https://github.com/viser-project/viser.git
+[submodule "classic_control_hover/plant_analysis"]
+	path = classic_control_hover/plant_analysis
+	url = https://github.com/WarriorHanamy/plant_analysis.git
