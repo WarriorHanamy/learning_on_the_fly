@@ -47,7 +47,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["lotf*"]
+include = ["lotf*", "advanced_control_lib*"]
 
 [tool.uv.sources]
 minco-python = { path = "deps/minco-python" }
