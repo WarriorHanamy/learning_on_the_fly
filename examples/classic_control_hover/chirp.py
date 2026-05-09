@@ -108,54 +108,37 @@ def segment_id(t: float, segments: list[ChirpSegment]) -> int:
 
 
 def default_chirp_segments(mass_kg: float = 0.192) -> list[ChirpSegment]:
-    """Return the recommended sequential chirp segment list.
-
-    Segments are ordered in time: settle → thrust → recover → p-rate →
-    recover → q-rate → recover → r-rate.  Amplitudes are scaled by vehicle
-    mass where appropriate.
-    """
-    mg = mass_kg * 9.81
+    """Return the recommended sequential chirp segment list (p, q, r only)."""
     return [
-        # --- thrust chirp (5-35 s) ---
+        # --- p-rate chirp (5-35 s) ---
         ChirpSegment(
-            channel="thrust",
-            amplitude=0.08 * mg,  # ~0.15 N for 0.192 kg
+            channel="p",
+            amplitude=0.01,  # rad/s
             f0_hz=0.2,
-            f1_hz=6.0,
+            f1_hz=4.0,
             t_start=5.0,
             duration=30.0,
             kind="log",
             window_s=2.0,
         ),
-        # --- p-rate chirp (40-70 s) ---
+        # --- q-rate chirp (40-70 s) ---
         ChirpSegment(
-            channel="p",
-            amplitude=0.6,  # rad/s
+            channel="q",
+            amplitude=0.01,
             f0_hz=0.2,
-            f1_hz=10.0,
+            f1_hz=4.0,
             t_start=40.0,
             duration=30.0,
             kind="log",
             window_s=2.0,
         ),
-        # --- q-rate chirp (75-105 s) ---
-        ChirpSegment(
-            channel="q",
-            amplitude=0.6,
-            f0_hz=0.2,
-            f1_hz=10.0,
-            t_start=75.0,
-            duration=30.0,
-            kind="log",
-            window_s=2.0,
-        ),
-        # --- r-rate chirp (110-140 s) ---
+        # --- r-rate chirp (75-105 s) ---
         ChirpSegment(
             channel="r",
-            amplitude=0.3,
+            amplitude=0.01,
             f0_hz=0.2,
-            f1_hz=6.0,
-            t_start=110.0,
+            f1_hz=4.0,
+            t_start=75.0,
             duration=30.0,
             kind="log",
             window_s=2.0,

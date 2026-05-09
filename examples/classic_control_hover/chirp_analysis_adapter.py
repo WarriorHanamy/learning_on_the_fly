@@ -67,8 +67,8 @@ def extract_sweeps(
         meta = json.load(f)
 
     segments = meta.get("chirp_segments", [])
-    if len(segments) != 4:
-        raise ValueError(f"Expected 4 chirp segments in metadata, got {len(segments)}")
+    if len(segments) != 3:
+        raise ValueError(f"Expected 3 chirp segments (p, q, r) in metadata, got {len(segments)}")
 
     t_s = log["t_s"]
     segment_id = log["segment_id"]
@@ -123,7 +123,9 @@ def extract_sweeps(
                 channel=channel,
                 time_s=t_seg,
                 chirp_injected=chirp_offset_log[start:stop, ch_idx].copy(),
-                input_u=action_total[start:stop, ch_idx].copy(),
+                input_u=action_total[
+                    start:stop, ch_idx
+                ].copy(),  # p_cmd+chirp, q_cmd+chirp, r_cmd+chirp
                 output_y=output,
                 fs_hz=fs,
                 segment_meta=dict(seg),
@@ -199,7 +201,7 @@ def _save_bode_comparison(
     mag_frd = 20.0 * np.log10(np.maximum(np.abs(H_frd), 1e-15))
     phase_frd = np.unwrap(np.angle(H_frd)) * 180.0 / np.pi
 
-    fig, ax_mag, ax_phase = bode_subplot_grid()
+    fig, (ax_mag, ax_phase, ax_coh) = plt.subplots(3, 1, sharex=True, figsize=(7.0, 6.5))
     ax_mag.semilogx(freq_frd, mag_frd, ".", markersize=3, alpha=0.6, label="FRD")
     ax_mag.semilogx(omega_fit / (2.0 * np.pi), mag_fit, "-", linewidth=1.2, label="fitted DFO")
     ax_mag.axvline(dfo.freq_min_hz, color="gray", linestyle=":", linewidth=0.8)
@@ -212,8 +214,14 @@ def _save_bode_comparison(
     ax_phase.axvline(dfo.freq_min_hz, color="gray", linestyle=":", linewidth=0.8)
     ax_phase.axvline(dfo.freq_max_hz, color="gray", linestyle=":", linewidth=0.8)
     ax_phase.set_ylabel("Phase [deg]")
-    ax_phase.set_xlabel("Frequency [Hz]")
     ax_phase.legend(fontsize=7)
+
+    ax_coh.semilogx(freq_frd, coh, ".", markersize=3, alpha=0.6, color="purple")
+    ax_coh.axvline(dfo.freq_min_hz, color="gray", linestyle=":", linewidth=0.8)
+    ax_coh.axvline(dfo.freq_max_hz, color="gray", linestyle=":", linewidth=0.8)
+    ax_coh.set_ylabel("Coherence")
+    ax_coh.set_ylim(0.0, 1.05)
+    ax_coh.set_xlabel("Frequency [Hz]")
 
     fig.suptitle(
         f"Channel: {channel}  |  K={dfo.K:.3f}  τ={dfo.tau:.4f}s  "
@@ -223,6 +231,47 @@ def _save_bode_comparison(
     fig.tight_layout()
     output_dir.mkdir(parents=True, exist_ok=True)
     fig.savefig(str(output_dir / f"bode_{channel}.png"), dpi=200)
+    plt.close(fig)
+
+
+def _save_time_response(
+    ext,  # SweepExtract
+    dfo,  # DelayedFirstOrder
+    output_dir: Path,
+) -> None:
+    """Save time-domain comparison: real output vs DFO model response to chirp input."""
+    dt = 1.0 / ext.fs_hz
+    time = ext.time_s
+
+    # Delayed first-order model: tau * dy/dt + y = K * u(t - delay)
+    K, tau, delay = dfo.K, dfo.tau, dfo.delay
+    delay_samples = int(np.round(delay / dt))
+
+    u = ext.chirp_injected  # use chirp injection as model input
+    y_model = np.zeros_like(u)
+    y = 0.0
+    for i in range(1, len(u)):
+        u_idx = max(0, i - delay_samples)
+        u_delayed = u[u_idx]
+        if tau > 0.0:
+            dy = (K * u_delayed - y) / tau
+            y = y + dy * dt
+        else:
+            y = K * u_delayed
+        y_model[i] = y
+
+    y_real = ext.output_y
+
+    fig, ax = plt.subplots(figsize=(10, 3.5))
+    ax.plot(time, y_real, linewidth=0.8, alpha=0.8, label="real")
+    ax.plot(time, y_model, "--", linewidth=1.2, label="model")
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Response")
+    ax.set_title(f"Channel: {ext.channel}  |  K={K:.3f}  τ={tau:.4f}s  delay={delay:.4f}s")
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    fig.savefig(str(output_dir / f"response_{ext.channel}.png"), dpi=200)
     plt.close(fig)
 
 
@@ -256,45 +305,27 @@ def run_analysis(
             f"t=[{ext.time_s[0]:.1f}, {ext.time_s[-1]:.1f}]s  fs={ext.fs_hz:.1f}Hz"
         )
 
-        if ext.channel == "thrust":
-            # thrust closed-loop response is non-minimum-phase (SE3 controller
-            # creates phase lead); use unity gain with zero dynamics.
-            dfo = None  # skip fitting
-            approx = InnerLoopApprox(
-                channel=ext.channel,
-                K=1.0,
-                tau=0.0,
-                delay=0.0,
-                freq_min_hz=freq_range[0],
-                freq_max_hz=freq_range[1],
-                magnitude_rmse_db=0.0,
-                phase_rmse_deg=0.0,
-            )
-            print(f"    → K=1.000  τ=0.0000s  delay=0.0000s  (thrust fixed, not fitted)")
-        else:
-            dfo = fit_delayed_first_order(
-                ext.input_u, ext.output_y, ext.fs_hz, freq_range=freq_range
-            )
-            approx = InnerLoopApprox(
-                channel=ext.channel,
-                K=dfo.K,
-                tau=dfo.tau,
-                delay=dfo.delay,
-                freq_min_hz=dfo.freq_min_hz,
-                freq_max_hz=dfo.freq_max_hz,
-                magnitude_rmse_db=dfo.magnitude_rmse_db,
-                phase_rmse_deg=dfo.phase_rmse_deg,
-            )
-            print(
-                f"    → K={approx.K:.4f}  τ={approx.tau:.4f}s  delay={approx.delay:.4f}s  "
-                f"mag_rmse={approx.magnitude_rmse_db:.2f}dB  phase_rmse={approx.phase_rmse_deg:.2f}°"
-            )
+        dfo = fit_delayed_first_order(ext.input_u, ext.output_y, ext.fs_hz, freq_range=freq_range)
+        approx = InnerLoopApprox(
+            channel=ext.channel,
+            K=dfo.K,
+            tau=dfo.tau,
+            delay=dfo.delay,
+            freq_min_hz=dfo.freq_min_hz,
+            freq_max_hz=dfo.freq_max_hz,
+            magnitude_rmse_db=dfo.magnitude_rmse_db,
+            phase_rmse_deg=dfo.phase_rmse_deg,
+        )
+        print(
+            f"    → K={approx.K:.4f}  τ={approx.tau:.4f}s  delay={approx.delay:.4f}s  "
+            f"mag_rmse={approx.magnitude_rmse_db:.2f}dB  phase_rmse={approx.phase_rmse_deg:.2f}°"
+        )
 
         channels.append(approx)
 
-        if dfo is not None:
-            freq, H, coh = tfestimate(ext.input_u, ext.output_y, ext.fs_hz)
-            _save_bode_comparison(freq, H, coh, dfo, ext.channel, output_dir)
+        freq, H, coh = tfestimate(ext.input_u, ext.output_y, ext.fs_hz)
+        _save_bode_comparison(freq, H, coh, dfo, ext.channel, output_dir)
+        _save_time_response(ext, dfo, output_dir)
 
     result = InnerLoopApproxSet(
         source_setting=setting,

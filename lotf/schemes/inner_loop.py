@@ -146,7 +146,7 @@ class InnerLoopScheme:
         key_thrust, key_drag = jax.random.split(dr_key)
         thrust_map = self._thrust_map[0]
         thrust_map = jax.random.uniform(
-            key_thrust, thrust_map.shape, minval=0.85 * thrust_map, maxval=1.15 * thrust_map
+            key_thrust, thrust_map.shape, minval=0.99 * thrust_map, maxval=1.01 * thrust_map
         )
 
         f = thrust_map * motor_omega**2

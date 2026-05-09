@@ -23,7 +23,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .chirp import chirp_vector, default_chirp_segments, segment_id
+from .chirp import ChirpSegment, chirp_vector, default_chirp_segments, segment_id
 from .controller import se3_hover_controller
 from .plotting import plot_all
 from .recorder import append_log, init_log, save_log
@@ -88,6 +88,14 @@ def run_experiment(cfg: ExperimentConfig, adapter_cfg: LotfAdapterConfig) -> int
         # 2) compute chirp injection
         chirp_off = chirp_vector(t, cfg.chirp_segments)
 
+        # zero the swept channel's controller during its chirp segment
+        seg_id = segment_id(t, cfg.chirp_segments)
+        if seg_id != 0:
+            seg = cfg.chirp_segments[seg_id - 1]
+            rate_idx = {"p": 0, "q": 1, "r": 2}.get(seg.channel)
+            if rate_idx is not None:
+                ctrl.omega_cmd_body_radps[rate_idx] = 0.0
+
         # 3) combine and saturate (use canonical ControlModel limits)
         action = np.zeros(4, dtype=np.float64)
         action[0] = np.clip(
@@ -107,7 +115,6 @@ def run_experiment(cfg: ExperimentConfig, adapter_cfg: LotfAdapterConfig) -> int
         sample = adaptor.step(action)
 
         # 5) record
-        seg_id = segment_id(t, cfg.chirp_segments)
         append_log(
             log,
             i,
@@ -141,7 +148,7 @@ def run_experiment(cfg: ExperimentConfig, adapter_cfg: LotfAdapterConfig) -> int
     print("Generating plots ...")
     plot_all(log, cfg.chirp_segments, cfg.output_dir)
     for seg in cfg.chirp_segments:
-        name = "thrust" if seg.channel == "thrust" else seg.channel
+        name = seg.channel
         print(f"  {Path(cfg.output_dir) / f'segment_{name}.png'}")
     print(f"  {Path(cfg.output_dir) / 'overview.png'}")
 
@@ -175,8 +182,8 @@ Examples:
     parser.add_argument(
         "--duration",
         type=float,
-        default=140.0,
-        help="Experiment duration [s] (default: 140)",
+        default=110.0,
+        help="Experiment duration [s] (default: 110)",
     )
     parser.add_argument(
         "--residual-checkpoint",

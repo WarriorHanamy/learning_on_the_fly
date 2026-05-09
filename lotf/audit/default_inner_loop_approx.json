@@ -1,47 +1,37 @@
 {
-  "source_setting": "default-audit-fixture",
-  "source_log_path": "",
-  "created_at": "",
+  "source_setting": "full",
+  "source_log_path": "outputs/classic_control_hover/log.npz",
+  "created_at": "2026-05-09T14:24:26.588955+00:00",
   "channels": [
     {
-      "channel": "thrust",
-      "K": 1.0,
-      "tau": 0.0,
-      "delay": 0.0,
-      "freq_min_hz": 0.0,
-      "freq_max_hz": 0.0,
-      "magnitude_rmse_db": 0.0,
-      "phase_rmse_deg": 0.0
-    },
-    {
       "channel": "p",
-      "K": 1.0,
-      "tau": 0.08,
-      "delay": 0.02,
+      "K": 1.138329281132664,
+      "tau": 1.0000025974732085e-06,
+      "delay": 0.0034622680124689227,
       "freq_min_hz": 1.0,
       "freq_max_hz": 4.0,
-      "magnitude_rmse_db": 0.0,
-      "phase_rmse_deg": 0.0
+      "magnitude_rmse_db": 4.1754272087215325,
+      "phase_rmse_deg": 161.56354630694344
     },
     {
       "channel": "q",
-      "K": 1.0,
-      "tau": 0.08,
-      "delay": 0.02,
+      "K": 1.051879236638161,
+      "tau": 1.0327958203096938e-06,
+      "delay": 0.0007530337532994693,
       "freq_min_hz": 1.0,
       "freq_max_hz": 4.0,
-      "magnitude_rmse_db": 0.0,
-      "phase_rmse_deg": 0.0
+      "magnitude_rmse_db": 6.384950558775642,
+      "phase_rmse_deg": 14.465097728048278
     },
     {
       "channel": "r",
-      "K": 1.0,
-      "tau": 0.08,
-      "delay": 0.02,
+      "K": 0.9609654615752596,
+      "tau": 1.000000033596841e-06,
+      "delay": 1.9291612944731657e-23,
       "freq_min_hz": 1.0,
       "freq_max_hz": 4.0,
-      "magnitude_rmse_db": 0.0,
-      "phase_rmse_deg": 0.0
+      "magnitude_rmse_db": 0.021744305190080856,
+      "phase_rmse_deg": 0.19491041933777337
     }
   ]
 }
