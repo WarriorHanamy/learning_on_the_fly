@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -29,9 +30,7 @@ from lotf.eval.runner import (
 )
 from lotf.forward_model_config import (
     SETTING_ORDER,
-    ForwardModelConfig,
     checkpoint_name_for_setting,
-    get_forward_model_config,
 )
 from lotf.traj_tracking_setup import (
     PolicyNetConfig,
@@ -51,7 +50,7 @@ class _BenchmarkConfig:
     ref_traj_name: str = "fig8"
     sim_dt: float = 0.02
     delay: float = 0.04
-    max_sim_time: float = 10.0
+    max_sim_time: float = 33.0  # 3 laps of fig8 (11.0s each)
     skip_start: bool = True
     yaw_scale: float = 0.0
     pitch_roll_scale: float = 0.0
@@ -100,88 +99,73 @@ class _BenchmarkConfig:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments."""
     parser = argparse.ArgumentParser(
         prog="eval",
         description="Evaluate a trained trajectory tracking policy against a fixed benchmark.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    uv run eval track --checkpoint checkpoints/policy/traj_tracking_params
-    uv run eval track --checkpoint checkpoints/policy/traj_tracking_params --output results.json
-    uv run eval track --checkpoint checkpoints/policy/traj_tracking_params --plot
+    uv run eval                                                # evaluate all settings (suite)
+    uv run eval --setting simplest                             # single setting
+    uv run eval --checkpoint path/to/checkpoint                # single checkpoint
+    uv run eval --output results.json --plot-output comp.png    # save outputs
         """,
     )
 
     parser.add_argument(
-        "env_type",
-        choices=["track"],
-        help="Policy type (only track is supported)",
+        "--setting",
+        choices=["all", *SETTING_ORDER],
+        default="all",
+        help="Scheme(s) to evaluate (default: all)",
     )
-
     parser.add_argument(
         "--checkpoint",
         type=str,
         default=None,
         help="Path to one trained policy checkpoint (single-model mode)",
     )
-
     parser.add_argument(
         "--checkpoint-stem",
         type=str,
         default="checkpoints/policy/traj_tracking_params",
-        help="Base checkpoint stem for default four-setting compare mode",
+        help="Base checkpoint stem for suite mode (default: checkpoints/policy/traj_tracking_params)",
     )
-
     parser.add_argument(
         "--benchmark-config",
         type=str,
-        default="configs/benchmark_traj_fig8.yaml",
+        default="configs/traj_tracking.yaml",
         help="Path to the benchmark YAML configuration",
     )
-
     parser.add_argument(
         "--policy-config",
         type=str,
         default="configs/traj_tracking.yaml",
         help="Path to the training YAML config (used for policy network architecture)",
     )
-
     parser.add_argument(
         "--residual-checkpoint",
         type=str,
         default=None,
-        help=(
-            "Path to residual dynamics checkpoint "
-            "(default: checkpoints/residual_dynamics/residual_params)"
-        ),
+        help="Path to residual dynamics checkpoint",
     )
-
     parser.add_argument(
         "--output",
         type=str,
         default=None,
         help="Path to save benchmark summary as JSON (optional)",
     )
-
-    parser.add_argument(
-        "--plot",
-        action="store_true",
-        default=False,
-        help="Save legacy single-checkpoint trajectory plot to benchmark_plot.png",
-    )
-
     parser.add_argument(
         "--plot-output",
         type=str,
-        default="benchmark_compare.png",
-        help="Path to save suite comparison figure (default: benchmark_compare.png)",
+        default=None,
+        help="Path to save suite comparison figure",
     )
-
     parser.add_argument(
         "--seed",
         type=int,
         default=None,
-        help="Override benchmark seed (default: use seed from benchmark config)",
+        help="Override benchmark seed",
     )
 
     return parser.parse_args()
@@ -231,18 +215,15 @@ def _print_missing_settings(checkpoint_stem: str, found: dict[str, Path]) -> Non
 def _print_suite_table(results: list[BenchmarkRunResult]) -> None:
     print("\nBenchmark comparison:")
     header = (
-        f"{'setting':<10} {'resacc':<6} {'innerloop':<9} {'return':>10} "
-        f"{'collision':>10} {'ep_len':>8} {'pos_rmse':>9} {'vel_rmse':>9} checkpoint"
+        f"{'scheme':<16} {'return':>10} {'collision':>10} "
+        f"{'ep_len':>8} {'pos_rmse':>9} {'vel_rmse':>9} checkpoint"
     )
     print(header)
     print("-" * len(header))
     for result in results:
-        cfg = result.train_forward_model_config
         m = result.metrics
         print(
-            f"{result.label:<10} "
-            f"{str(cfg.enable_residual_acceleration)[0]:<6} "
-            f"{str(cfg.enable_inner_loop_dynamics)[0]:<9} "
+            f"{result.scheme_name:<16} "
             f"{m.mean_episodic_return:>10.2f} "
             f"{m.collision_rate:>10.2f} "
             f"{m.mean_episode_length:>8.1f} "
@@ -259,9 +240,8 @@ def _suite_summary(results: list[BenchmarkRunResult], benchmark_cfg: _BenchmarkC
         "ref_traj_name": benchmark_cfg.ref_traj_name,
         "results": [
             {
-                "setting": r.label,
+                "scheme": r.scheme_name,
                 "checkpoint": r.checkpoint_path,
-                "forward_model_config": r.train_forward_model_config.to_dict(),
                 "mean_episodic_return": r.metrics.mean_episodic_return,
                 "collision_rate": r.metrics.collision_rate,
                 "mean_episode_length": r.metrics.mean_episode_length,
@@ -285,20 +265,20 @@ def main() -> int:
 
     seed = args.seed if args.seed is not None else benchmark_cfg.seed
 
-    # --- build benchmark simulator (fixed forward model) ---
-    benchmark_forward_model = ForwardModelConfig(
-        enable_residual_acceleration=True,
-        enable_inner_loop_dynamics=True,
+    # --- build benchmark simulator (fixed: FullScheme) ---
+    # --- resolve residual checkpoint for benchmark simulator ---
+    residual_path = args.residual_checkpoint or str(
+        LOTF_ROOT / "checkpoints" / "residual_dynamics" / "residual_params"
     )
 
-    # construct a TrajTrackingConfig for the benchmark env
     benchmark_env_config = TrajTrackingConfig(
         sim_dt=benchmark_cfg.sim_dt,
         max_sim_time=benchmark_cfg.max_sim_time,
         delay=benchmark_cfg.delay,
         ref_traj_name=benchmark_cfg.ref_traj_name,
         skip_start=benchmark_cfg.skip_start,
-        forward_model_config=benchmark_forward_model,
+        scheme_name="full",
+        scheme_config={"residual_checkpoint": residual_path},
         yaw_scale=benchmark_cfg.yaw_scale,
         pitch_roll_scale=benchmark_cfg.pitch_roll_scale,
         position_std=benchmark_cfg.position_std,
@@ -324,14 +304,13 @@ def main() -> int:
     discovered = None
     if not args.checkpoint:
         discovered = _discover_latest_setting_checkpoints(args.checkpoint_stem)
-        if len(discovered) != len(SETTING_ORDER):
+        target_settings = SETTING_ORDER if args.setting == "all" else [args.setting]
+        missing = [s for s in target_settings if s not in discovered]
+        if missing:
             _print_missing_settings(args.checkpoint_stem, discovered)
             return 1
 
-    # --- load residual checkpoint ---
-    residual_path = args.residual_checkpoint or str(
-        LOTF_ROOT / "checkpoints" / "residual_dynamics" / "residual_params"
-    )
+    # --- load residual checkpoint (for rollout arg, scheme already has its own) ---
     print(f"Loading residual checkpoint: {residual_path}")
     try:
         residual_params = load_residual_params(residual_path)
@@ -349,12 +328,14 @@ def main() -> int:
         f"\nRunning benchmark: {benchmark_cfg.ref_traj_name} | "
         f"num_rollouts={benchmark_cfg.num_rollouts} | seed={seed}"
     )
-    print("Forward model: residual_acceleration=true, inner_loop_dynamics=true")
+    print("Simulator scheme: full (inner_loop + residual_acceleration)")
     print("-" * 50)
+
+    _plot_dir = os.path.join(LOTF_ROOT, "_tmp")
+    os.makedirs(_plot_dir, exist_ok=True)
 
     if args.checkpoint:
         print(f"Loading policy checkpoint: {args.checkpoint}")
-        policy_config.forward_model_config = benchmark_forward_model
         policy_fn = load_policy_fn(args.checkpoint, policy_config, env)
 
         metrics, transitions = run_benchmark(
@@ -386,22 +367,21 @@ def main() -> int:
                 json.dump(summary, f, indent=2)
             print(f"\nSummary saved to: {args.output}")
 
-        if args.plot:
-            env.plot_trajectories(transitions, save_path="benchmark_plot.png")
-            print("Plot saved to: benchmark_plot.png")
+        plot_path = os.path.join(_plot_dir, "single_traj.png")
+        env.plot_trajectories(transitions, vertical_plane=False, save_path=plot_path)
+        print(f"Trajectory plot saved to: {plot_path}")
 
         return 0
 
     policy_specs = []
-    policy_config.forward_model_config = benchmark_forward_model
-    for setting_name in SETTING_ORDER:
+    for setting_name in target_settings:
         checkpoint_path = discovered[setting_name]
         print(f"Loading {setting_name} policy checkpoint: {checkpoint_path}")
         policy_specs.append(
             BenchmarkPolicySpec(
                 label=setting_name,
                 checkpoint_path=str(checkpoint_path),
-                train_forward_model_config=get_forward_model_config(setting_name),
+                scheme_name=setting_name,
                 policy_fn=load_policy_fn(checkpoint_path, policy_config, env),
             )
         )
@@ -416,6 +396,12 @@ def main() -> int:
     )
 
     _print_suite_table(results)
+
+    # auto-plot XY-plane trajectory for each scheme
+    for result in results:
+        plot_path = os.path.join(_plot_dir, f"{result.scheme_name}_traj.png")
+        env.plot_trajectories(result.transitions, vertical_plane=False, save_path=plot_path)
+        print(f"Plot saved: {plot_path}")
 
     if args.output:
         output_path = Path(args.output)

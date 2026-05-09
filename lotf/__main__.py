@@ -68,7 +68,7 @@ def list_configs() -> int:
 
 
 def create_parser() -> argparse.ArgumentParser:
-    """Create the argument parser with subcommands.
+    """Create the argument parser.
 
     Returns:
         Configured ArgumentParser instance.
@@ -79,21 +79,18 @@ def create_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    # Show version
-    uv run train --version
+    # Train trajectory tracking (all schemes)
+    uv run train
 
-    # List available configs
-    uv run train --list-configs
-
-    # Train trajectory tracking
-    uv run train track --config configs/traj_tracking.yaml
+    # Train a single scheme
+    uv run train --setting simplest
+    uv run train --checkpoint checkpoints/my_policy
 
     # Train residual dynamics
-    uv run train residual --config configs/residual_dynamics.yaml --dataset data.csv
+    uv run train residual --dataset data.csv
 
-For subcommand help:
-    uv run train track --help
-    uv run train residual --help
+    # Show version
+    uv run train --version
         """,
     )
 
@@ -103,72 +100,56 @@ For subcommand help:
         action="store_true",
         help="Show package version and exit",
     )
-
     parser.add_argument(
         "--list-configs",
         action="store_true",
         help="List available configuration files and exit",
     )
 
-    # Subcommands
-    subparsers = parser.add_subparsers(
-        dest="command",
-        title="subcommands",
-        description="Training tasks available:",
-        metavar="COMMAND",
-    )
-
-    # track subcommand
-    track_parser = subparsers.add_parser(
-        "track",
-        help="Train trajectory tracking policy",
-        description="Train a neural network policy for quadrotor trajectory tracking using BPTT.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-    uv run train track --config configs/traj_tracking.yaml
-    uv run train track --config configs/traj_tracking.yaml --checkpoint checkpoints/my_policy
-        """,
-    )
-    track_parser.add_argument(
+    # Track training args (top-level)
+    parser.add_argument(
         "--config",
         type=str,
         default="configs/traj_tracking.yaml",
         help="Path to YAML configuration file (default: configs/traj_tracking.yaml)",
     )
-    track_parser.add_argument(
+    parser.add_argument(
         "--checkpoint",
         type=str,
         default="checkpoints/policy/traj_tracking_params",
         help="Path to save the trained policy checkpoint or base stem for --setting all",
     )
-    track_parser.add_argument(
+    parser.add_argument(
         "--setting",
-        choices=["all", *SETTING_ORDER],
+        choices=["all", *SETTING_ORDER, "innerloop"],
         default="all",
-        help="Forward model setting to train (default: all)",
+        help="Scheme to train (default: all)",
     )
-    )
-    track_parser.add_argument(
+    parser.add_argument(
         "--residual-checkpoint",
         type=str,
         default="checkpoints/residual_dynamics/residual_params",
         help="Residual dynamics checkpoint for resacc/full settings",
     )
-    track_parser.add_argument(
+    parser.add_argument(
         "--trajectory-output",
         type=str,
         default=None,
         help="Path to export trajectory CSV file (optional)",
     )
-    track_parser.add_argument(
+    parser.add_argument(
         "--approx-path",
         type=str,
         default=None,
         help="Path to inner_loop_approx.json (required for --setting approx)",
     )
 
-    # residual subcommand
+    # Residual subcommand
+    subparsers = parser.add_subparsers(
+        dest="command",
+        title="subcommands",
+        metavar="COMMAND",
+    )
     residual_parser = subparsers.add_parser(
         "residual",
         help="Train residual dynamics ensemble model",
@@ -178,7 +159,6 @@ Examples:
 Examples:
     uv run train residual
     uv run train residual --dataset my_data.csv
-    uv run train residual --config configs/residual_dynamics.yaml --dataset data.csv
         """,
     )
     residual_parser.add_argument(
@@ -190,29 +170,21 @@ Examples:
     residual_parser.add_argument(
         "--dataset",
         type=str,
-        default="examples/residual_dynamics/example_dataset.csv",
-        help="Path to CSV dataset file (default: examples/residual_dynamics/example_dataset.csv)",
+        required=True,
+        help="Path to CSV dataset file",
     )
     residual_parser.add_argument(
         "--output",
         type=str,
-        default="checkpoints/residual_dynamics/residual_params",
-        help="Path to save the trained ensemble checkpoint",
+        default="checkpoints/residual_dynamics/dummy_params",
+        help="Path to save trained model checkpoint",
     )
 
     return parser
 
 
 def _run_with_argv(train_main, new_argv: list[str]) -> int:
-    """Run a training main function with modified sys.argv.
-
-    Args:
-        train_main: The training script's main function.
-        new_argv: New argv list to use (including program name).
-
-    Returns:
-        Exit code from the training main function.
-    """
+    """Run a training main function with modified sys.argv."""
     original_argv = sys.argv
     try:
         sys.argv = new_argv
@@ -222,57 +194,19 @@ def _run_with_argv(train_main, new_argv: list[str]) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Main entry point for the LOTF CLI.
-
-    Args:
-        argv: Command-line arguments (defaults to sys.argv[1:]).
-
-    Returns:
-        Exit code (0 for success, non-zero for errors).
-    """
+    """Main entry point for the LOTF CLI."""
     parser = create_parser()
     args = parser.parse_args(argv)
 
-    # Handle global flags
     if args.version:
         print(f"lotf {get_version()}")
         return 0
-
     if args.list_configs:
         return list_configs()
 
-    # Require a subcommand if no global flags
-    if not args.command:
-        parser.print_help()
-        print("\nError: A subcommand is required.", file=sys.stderr)
-        return 2
-
-    # Dispatch to subcommand handlers
-    if args.command == "track":
-        from lotf.scripts.train_traj_tracking import main as train_track
-
-        # Build argv for the training script
-        train_argv = [
-            "train_traj_tracking",
-            "--config",
-            args.config,
-            "--checkpoint",
-            args.checkpoint,
-            "--setting",
-            args.setting,
-            "--residual-checkpoint",
-            args.residual_checkpoint,
-        ]
-        if args.trajectory_output:
-            train_argv.extend(["--trajectory-output", args.trajectory_output])
-        if args.approx_path:
-            train_argv.extend(["--approx-path", args.approx_path])
-        return _run_with_argv(train_track, train_argv)
-
-    elif args.command == "residual":
+    if args.command == "residual":
         from lotf.scripts.train_residual import main as train_residual
 
-        # Build argv for the training script
         train_argv = [
             "train_residual",
             "--config",
@@ -283,6 +217,85 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.output,
         ]
         return _run_with_argv(train_residual, train_argv)
+
+    # Default: track training
+    from lotf.scripts.train_traj_tracking import main as train_track
+
+    train_argv = [
+        "train_traj_tracking",
+        "--config",
+        args.config,
+        "--checkpoint",
+        args.checkpoint,
+        "--setting",
+        str(args.setting),
+        "--residual-checkpoint",
+        args.residual_checkpoint,
+    ]
+    if args.trajectory_output:
+        train_argv += ["--trajectory-output", args.trajectory_output]
+    if args.approx_path:
+        train_argv += ["--approx-path", args.approx_path]
+    return _run_with_argv(train_track, train_argv)
+
+    # Dispatch to subcommand handlers
+    if args.command == "track":
+        from lotf.scripts.train_traj_tracking import main as train_track
+
+        train_argv = [
+            "train_traj_tracking",
+            "--config",
+            args.config,
+            "--checkpoint",
+            args.checkpoint,
+            "--setting",
+            str(args.setting),
+            "--residual-checkpoint",
+            args.residual_checkpoint,
+        ]
+        if args.trajectory_output:
+            train_argv += ["--trajectory-output", args.trajectory_output]
+        if args.approx_path:
+            train_argv += ["--approx-path", args.approx_path]
+        return _run_with_argv(train_track, train_argv)
+
+    elif args.command == "residual":
+        from lotf.scripts.train_residual import main as train_residual
+
+        train_argv = [
+            "train_residual",
+            "--config",
+            args.config,
+            "--dataset",
+            args.dataset,
+            "--output",
+            args.output,
+        ]
+        return _run_with_argv(train_residual, train_argv)
+
+    elif args.command == "eval":
+        from lotf.scripts.evaluate_policy import main as eval_policy
+
+        eval_argv = [
+            "evaluate_policy",
+            "--benchmark-config",
+            args.benchmark_config,
+            "--setting",
+            args.setting,
+        ]
+        if args.checkpoint:
+            eval_argv += ["--checkpoint", args.checkpoint]
+        else:
+            eval_argv += ["--checkpoint-stem", args.checkpoint_stem]
+        if args.residual_checkpoint:
+            eval_argv += ["--residual-checkpoint", args.residual_checkpoint]
+        if args.output:
+            eval_argv += ["--output", args.output]
+        if args.plot_output:
+            eval_argv += ["--plot-output", args.plot_output]
+        if args.seed is not None:
+            eval_argv += ["--seed", str(args.seed)]
+        return _run_with_argv(eval_policy, eval_argv)
 
     else:
         print(f"Error: Unknown command '{args.command}'", file=sys.stderr)

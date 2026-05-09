@@ -13,7 +13,6 @@ import numpy as np
 from flax.core import FrozenDict
 
 from lotf.envs.env_base import EnvTransition, rollout
-from lotf.forward_model_config import ForwardModelConfig
 from lotf.objects.reference_traj_obj import TrajColumns
 
 
@@ -43,7 +42,7 @@ class BenchmarkPolicySpec:
 
     label: str
     checkpoint_path: str
-    train_forward_model_config: ForwardModelConfig
+    scheme_name: str
     policy_fn: object
 
 
@@ -53,7 +52,7 @@ class BenchmarkRunResult:
 
     label: str
     checkpoint_path: str
-    train_forward_model_config: ForwardModelConfig
+    scheme_name: str
     metrics: BenchmarkMetrics
     transitions: EnvTransition
 
@@ -212,7 +211,7 @@ def run_benchmark_suite(
             BenchmarkRunResult(
                 label=spec.label,
                 checkpoint_path=spec.checkpoint_path,
-                train_forward_model_config=spec.train_forward_model_config,
+                scheme_name=spec.scheme_name,
                 metrics=metrics,
                 transitions=transitions,
             )

@@ -17,12 +17,21 @@ delay: 0.04
 ref_traj_name: fig8
 skip_start: true
 
-# Forward model config
+# Forward model config (legacy — prefer 'scheme' field)
 forward_model_config:
   enable_inner_loop_dynamics: false
   enable_residual_acceleration: false
   enable_inner_loop_approx: false
-  # inner_loop_approx_path: ""  # optional, set when enable_inner_loop_approx is true
+
+# Scheme-based simulation selection (new approach)
+# Allowed values: simplest, resacc, approx, approx_resacc, inner_loop, full
+scheme: simplest
+# scheme_config:  # optional scheme-specific overrides
+#   chirp_path: ""
+#   dt_low_level: 0.001
+#   rotor_augmentation_path: null
+#   kp: [40.0, 40.0, 30.0]
+#   kd: [20.0, 20.0, 0.0]
 
 # Environment noise parameters
 yaw_scale: 0.1

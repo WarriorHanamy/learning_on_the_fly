@@ -53,6 +53,7 @@ class EnvWrapper(Env):
 @jdc.pytree_dataclass
 class LogEnvState(EnvState):
     """State container for the logging wrapper, including episode statistics."""
+
     env_state: EnvState
     episode_returns: float
     episode_lengths: int
@@ -75,9 +76,9 @@ class LogWrapper(EnvWrapper):
             env_state = state.env_state
         else:
             env_state = None
-            
+
         state, obs = self._env.reset(key, env_state)
-        
+
         log_state = LogEnvState(
             env_state=state,
             episode_returns=0.0,
@@ -93,27 +94,29 @@ class LogWrapper(EnvWrapper):
         """Updates logging metrics on each step."""
         transition = self._env.step(state.env_state, action, res_model_param, key)
         env_state, obs, reward, terminated, truncated, info = transition
-        
+
         done = jnp.logical_or(terminated, truncated)
         new_episode_return = state.episode_returns + reward
         new_episode_length = state.episode_lengths + 1
-        
+
         # update state and reset episode counters if done
         state = LogEnvState(
             env_state=env_state,
             episode_returns=new_episode_return * (1 - done),
             episode_lengths=new_episode_length * (1 - done),
-            returned_episode_returns=state.returned_episode_returns * (1 - done) + new_episode_return * done,
-            returned_episode_lengths=state.returned_episode_lengths * (1 - done) + new_episode_length * done,
+            returned_episode_returns=state.returned_episode_returns * (1 - done)
+            + new_episode_return * done,
+            returned_episode_lengths=state.returned_episode_lengths * (1 - done)
+            + new_episode_length * done,
             timestep=state.timestep + 1,
         )
-        
+
         # populate info dict with log data
         info["returned_episode_returns"] = state.returned_episode_returns
         info["returned_episode_lengths"] = state.returned_episode_lengths
         info["timestep"] = state.timestep
         info["returned_episode"] = done
-        
+
         return transition._replace(state=state, info=info)
 
     def _get_obs(self, state, asymmetric=False):
@@ -125,12 +128,21 @@ class VecEnv(EnvWrapper):
     """Vectorizes environment methods for parallel execution across a batch."""
 
     def __init__(self, env):
-        """Initialize vectorized versions of reset, step, and obs retrieval."""
+        """Initialize vectorized versions of step and obs retrieval."""
         super().__init__(env)
-        # vmap over the batch dimension
-        self.reset = jax.vmap(self._env.reset, in_axes=(0, 0))
         self.step = jax.vmap(self._env.step, in_axes=(0, 0, None, 0))
         self._get_obs = jax.vmap(self._env._get_obs, in_axes=(0, None))
+
+    def reset(self, key, state=None):
+        """Vectorized reset — handles both 1-arg and 2-arg calls.
+
+        JAX vmap does not handle trailing default arguments, so we
+        dispatch to the correct in_axes signature explicitly.
+        """
+        _reset = self._env.reset
+        if state is not None:
+            return jax.vmap(_reset, in_axes=(0, 0))(key, state)
+        return jax.vmap(_reset, in_axes=(0, None))(key, None)
 
 
 class MinMaxObservationWrapper(EnvWrapper):
@@ -141,7 +153,7 @@ class MinMaxObservationWrapper(EnvWrapper):
         super().__init__(env)
         self._obs_min = jnp.array(self._env.observation_space.low)
         self._obs_max = jnp.array(self._env.observation_space.high)
-        
+
         # safety checks for normalization
         assert jnp.isinf(self._obs_max).sum() == 0, "obs space has infinities"
         assert jnp.isinf(self._obs_min).sum() == 0, "obs space has infinities"

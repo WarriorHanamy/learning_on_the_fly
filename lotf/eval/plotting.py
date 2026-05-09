@@ -29,9 +29,9 @@ def plot_benchmark_comparison(
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
     colors = {
-        "nominal": "#4c78a8",
+        "simplest": "#4c78a8",
         "resacc": "#f58518",
-        "innerloop": "#54a24b",
+        "inner_loop": "#54a24b",
         "full": "#b279a2",
     }
 

@@ -110,21 +110,23 @@ def compute_residuals(state, params: AugmentationParams):
     Computes force and torque residuals using a polynomial model.
 
     Args:
-        state: current system state containing velocity, orientation, and motors
+        state: current system state containing velocity, orientation, and motors.
+            Supports both old (direct fields) and new (scheme_state dict) formats.
         params: AugmentationParams containing model coefficients
     Returns:
         tuple of (residual_acceleration_world, residual_torque_body)
     """
     v_world = state.v
-    # transform world velocity to body frame
     v_body = state.R.T @ v_world
     vx, vy, vz = v_body
-    # compute horizontal velocity magnitude
     vhor = jnp.sqrt(vx**2 + vy**2)
-    # mean of squared motor speeds
-    m_mean = (state.motor_omega**2).mean()
+
+    # access motor_omega from either old (direct) or new (scheme_state dict) format
+    motor_omega = _get_motor_omega(state)
     ang_x = 0.0
     ang_y = 0.0
+
+    m_mean = (motor_omega**2).mean()
 
     # build polynomial features for force
     poly_fx = jnp.array([vx, m_mean, ang_y, vx * m_mean, vx * jnp.abs(vx), vx**3])
@@ -166,3 +168,14 @@ def compute_residuals(state, params: AugmentationParams):
     residual_torque = params.scale_torque * jnp.array([delta_tx, delta_ty, delta_tz])
 
     return residual_acceleration, residual_torque
+
+
+def _get_motor_omega(state) -> jnp.ndarray:
+    """Extract motor_omega from old (direct field) or new (scheme_state dict) state.
+
+    Supports backward compatibility during the scheme-based refactoring transition.
+    """
+    if hasattr(state, "motor_omega"):
+        return state.motor_omega
+    ss = getattr(state, "scheme_state", {})
+    return ss.get("inner_loop_motor_omega", ss.get("motor_omega", jnp.zeros(4)))

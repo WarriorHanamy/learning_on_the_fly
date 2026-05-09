@@ -19,8 +19,18 @@ from flax.core import FrozenDict
 from orbax.checkpoint import PyTreeCheckpointer
 
 from lotf import LOTF_ROOT
-from lotf.forward_model_config import ForwardModelConfig, SETTING_SPECS
-from lotf.objects.quadrotor_obj import Quadrotor, QuadrotorState
+from lotf.objects.quadrotor_obj import Quadrotor
+from lotf.objects.quadrotor_state import QuadrotorState
+from lotf.schemes import build_scheme
+from lotf.schemes.configs import (
+    QuadrotorParams,
+    SimplestConfig,
+    ResAccConfig,
+    ApproxConfig,
+    ApproxResAccConfig,
+    InnerLoopConfig,
+    FullConfig,
+)
 
 from .schema import ControlModel, HoverTarget, StateSample
 
@@ -53,10 +63,10 @@ class LotfAdapterConfig:
 # ---------------------------------------------------------------------------
 
 
-@_partial(jax.jit, static_argnums=(0, 5))
-def _jit_step(quad, state, f_d, omega_d, res_model_params, dt_val):
+@_partial(jax.jit, static_argnums=(0, 4))
+def _jit_step(quad, state, f_d, omega_d, dt_val):
     """JIT-compiled plant step — ``quad`` and ``dt_val`` are compile-time constants."""
-    return quad.step(state, f_d, omega_d, res_model_params, dt_val)
+    return quad.step(state, f_d, omega_d, dt_val)
 
 
 # ---------------------------------------------------------------------------
@@ -112,18 +122,19 @@ def _quad_state_to_sample(qs: QuadrotorState, thrust_coeff: float) -> StateSampl
     motor speeds, estimated thrust) are placed in ``extras``.
     """
     R_np = np.array(qs.R)
-    motor_omega_np = np.array(qs.motor_omega)
+    ss = qs.scheme_state
+    motor_omega_np = np.array(ss.get("inner_loop_motor_omega", np.zeros(4)))
     thrust_est = float(np.sum(thrust_coeff * motor_omega_np**2))
 
     return StateSample(
         p_world_m=np.array(qs.p),
         v_world_mps=np.array(qs.v),
         q_world_from_body_wxyz=_R_to_quat_wxyz(R_np),
-        omega_body_radps=np.array(qs.omega),
-        acc_world_mps2=np.array(qs.acc),
+        omega_body_radps=np.array(ss.get("inner_loop_omega", np.zeros(3))),
+        acc_world_mps2=np.array(ss.get("inner_loop_acc", np.zeros(3))),
         extras={
             "R_world_from_body": R_np,
-            "domega_body_radps2": np.array(qs.domega),
+            "domega_body_radps2": np.array(ss.get("inner_loop_domega", np.zeros(3))),
             "motor_omega_radps": motor_omega_np,
             "thrust_est_N": thrust_est,
         },
@@ -150,33 +161,72 @@ class SimAdapter:
     def __init__(self, config: LotfAdapterConfig):
         self._dt = float(config.dt)
 
-        if config.setting in SETTING_SPECS:
-            fwd = SETTING_SPECS[config.setting]
+        # determine scheme name from config
+        setting = config.setting
+        if setting == "innerloop":
+            setting = "inner_loop"
+
+        # load physical params
+        import os
+        import yaml
+
+        lotf_obj_dir = os.path.join(LOTF_ROOT, "lotf", "objects")
+        param_path = os.path.join(lotf_obj_dir, "quadrotor_files", "example_quad.yaml")
+        with open(param_path) as f:
+            param_dict = yaml.safe_load(f)
+        params = QuadrotorParams(
+            mass=param_dict["mass"],
+            tbm_fr=tuple(param_dict["tbm_fr"]),
+            tbm_bl=tuple(param_dict["tbm_bl"]),
+            tbm_br=tuple(param_dict["tbm_br"]),
+            tbm_fl=tuple(param_dict["tbm_fl"]),
+            inertia=tuple(param_dict["inertia"]),
+            motor_omega_min=param_dict.get("motor_omega_min", 150.0),
+            motor_omega_max=param_dict.get("motor_omega_max", 2800.0),
+            motor_tau=param_dict.get("motor_tau", 0.033),
+            motor_inertia=param_dict.get("motor_inertia", 5.64e-6),
+            omega_max=tuple(param_dict.get("omega_max", [10.0, 10.0, 4.0])),
+            thrust_map=tuple(param_dict.get("thrust_map", [1.562522e-6, 0.0, 0.0])),
+            kappa=param_dict.get("kappa", 0.022),
+            thrust_min=param_dict.get("thrust_min", 0.0),
+            thrust_max=param_dict.get("thrust_max", 8.5),
+            rotors_config=param_dict.get("rotors_config", "cross"),
+        )
+
+        # build scheme config from setting name
+        if setting == "simplest":
+            scheme_cfg = SimplestConfig()
+        elif setting == "resacc":
+            scheme_cfg = ResAccConfig()
+        elif setting == "approx":
+            approx_path = config.approx_path or "simulation/inner_loop_approx.json"
+            scheme_cfg = ApproxConfig(chirp_path=approx_path)
+        elif setting == "approx_resacc":
+            approx_path = config.approx_path or "simulation/inner_loop_approx.json"
+            scheme_cfg = ApproxResAccConfig(chirp_path=approx_path)
+        elif setting == "inner_loop":
+            scheme_cfg = InnerLoopConfig()
+        elif setting == "full":
+            scheme_cfg = FullConfig()
         else:
-            fwd = ForwardModelConfig(
-                enable_residual_acceleration=(config.setting in _SETTING_NEEDS_REAL_RESIDUAL),
-                enable_inner_loop_dynamics=(config.setting in {"innerloop", "full"}),
-            )
+            raise ValueError(f"Unknown setting: {setting}")
 
-        fwd_dict = fwd.to_dict()
-        if config.setting == "approx" and config.approx_path is not None:
-            fwd_dict["inner_loop_approx_path"] = config.approx_path
-
-        self._quad = Quadrotor.from_name("example_quad", fwd_dict)
-        self._residual_params = _load_residual_params(config.setting, config.residual_checkpoint)
+        res_params = _load_residual_params(config.setting, config.residual_checkpoint)
+        scheme = build_scheme(scheme_cfg, params, res_params)
+        self._quad = Quadrotor(scheme, params)
 
         # --- extract universal control model ---
         self._control_model = ControlModel(
-            mass_kg=float(self._quad._mass),
+            mass_kg=self._quad.mass,
             thrust_limits_N=(
-                float(self._quad._thrust_min * 4),
-                float(self._quad._thrust_max * 4),
+                self._quad.thrust_min * 4,
+                self._quad.thrust_max * 4,
             ),
-            rate_limits_body_radps=np.array(self._quad._omega_max),
+            rate_limits_body_radps=np.array(self._quad.omega_max),
         )
 
         # --- cache thrust coefficient for extras population ---
-        self._thrust_coeff = float(self._quad._thrust_map[0])
+        self._thrust_coeff = float(self._quad.params.thrust_map[0])
 
         self._current_quad_state: QuadrotorState | None = None
 
@@ -231,7 +281,6 @@ class SimAdapter:
             self._current_quad_state,
             jnp.array(f_d),
             omega_d,
-            self._residual_params,
             self._dt,
         )
         self._current_quad_state = new_state

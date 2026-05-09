@@ -91,17 +91,17 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
         else:
             self.quadrotor = Quadrotor.example_quadrotor()
 
-        self.omega_min = self.quadrotor._omega_max * -1
-        self.omega_max = self.quadrotor._omega_max
-        self.thrust_min = self.quadrotor._thrust_min
-        self.thrust_max = self.quadrotor._thrust_max
+        self.omega_min = self.quadrotor.omega_max * -1
+        self.omega_max = self.quadrotor.omega_max
+        self.thrust_min = self.quadrotor.thrust_min
+        self.thrust_max = self.quadrotor.thrust_max
 
         # control delay handling
         assert delay >= 0.0, "delay must be non-negative"
         self.delay = np.array(delay)
         self.num_last_actions = int(np.ceil(delay / dt)) + 1
 
-        thrust_hover = 9.81 * self.quadrotor._mass
+        thrust_hover = 9.81 * self.quadrotor.mass
         self.hovering_action = jnp.array([thrust_hover, 0.0, 0.0, 0.0])
 
         self.num_last_quad_states = num_last_quad_states
@@ -114,7 +114,7 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
         self.max_init_ref_traj_idx = self.num_ref_traj_points - self.max_steps_in_episode
 
         # calculate safety boundaries from reference trajectory
-        pos_margin = jnp.array([0.5, 0.5, 0.5])
+        pos_margin = jnp.array([2.0, 2.0, 2.0])
         vel_margin = jnp.array([0.5, 0.5, 0.5])
         self.world_box = WorldBox(
             ref_traj_obj.pos_bounds[0] - pos_margin, ref_traj_obj.pos_bounds[1] + pos_margin
@@ -224,18 +224,14 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
         dt_1 = self.delay - (self.num_last_actions - 2) * self.dt
         action_1 = last_actions[0]
         f_1, omega_1 = action_1[0], action_1[1:]
-        quadrotor_state = self.quadrotor.step(
-            state.quadrotor_state, f_1, omega_1, res_model_params, dt_1
-        )
+        quadrotor_state = self.quadrotor.step(state.quadrotor_state, f_1, omega_1, dt_1)
 
         # second integration step if needed to complete dt
         if dt_1 < self.dt:
             dt_2 = self.dt - dt_1
             action_2 = last_actions[1]
             f_2, omega_2 = action_2[0], action_2[1:]
-            quadrotor_state = self.quadrotor.step(
-                quadrotor_state, f_2, omega_2, res_model_params, dt_2
-            )
+            quadrotor_state = self.quadrotor.step(quadrotor_state, f_2, omega_2, dt_2)
 
         next_state = state.replace(
             time=state.time + self.dt,
@@ -388,7 +384,25 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
             label=f"Reference Trajectory ({plane_label})",
         )
 
-        # 2. Set axes and equal aspect ratio
+        # 2. Plot collision boundary (world box)
+        col_color = "#e74c3c"  # match end color for collision
+        idx_h = 2 if vertical_plane else 1
+        wb_min = self.world_box.min
+        wb_max = self.world_box.max
+        # rectangle: (x_min, y/z_min) → (x_max, y/z_min) → (x_max, y/z_max) → (x_min, y/z_max) → close
+        cx = [wb_min[0], wb_max[0], wb_max[0], wb_min[0], wb_min[0]]
+        cy = [wb_min[idx_h], wb_min[idx_h], wb_max[idx_h], wb_max[idx_h], wb_min[idx_h]]
+        ax1.plot(
+            cx,
+            cy,
+            color=col_color,
+            linestyle="-.",
+            linewidth=1.5,
+            alpha=0.6,
+            label="Collision boundary",
+        )
+
+        # 3. Set axes with collision box padding
         bounds_margin = 0.5
         min_bounds = np.min(ref_traj_pos, axis=0)
         max_bounds = np.max(ref_traj_pos, axis=0)

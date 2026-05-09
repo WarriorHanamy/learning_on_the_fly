@@ -58,7 +58,7 @@ def load_dummy_residual_params() -> Any:
 
 def load_residual_params_for_setting(setting_name: str, residual_checkpoint: str) -> Any:
     """Load the residual source required by a standard training setting."""
-    if setting_name in {"nominal", "innerloop"}:
+    if setting_name in {"simplest", "innerloop", "inner_loop"}:
         print("Loading dummy residual dynamics parameters...")
         return load_dummy_residual_params()
 
@@ -178,17 +178,26 @@ def _train_one_setting(
     residual_checkpoint: str,
     approx_path: str | None = None,
 ) -> dict[str, Any]:
-    fwd_cfg = get_forward_model_config(setting_name)
-    if setting_name in ("approx", "approx_resacc") and approx_path is not None:
-        fwd_cfg = replace(fwd_cfg, inner_loop_approx_path=approx_path)
+    # Normalize legacy setting names to scheme names
+    scheme_name = setting_name
+    if setting_name == "innerloop":
+        scheme_name = "inner_loop"
+
+    scheme_config = {}
+    if scheme_name in ("approx", "approx_resacc") and approx_path is not None:
+        scheme_config["chirp_path"] = approx_path
+    if scheme_name in ("resacc", "approx", "approx_resacc", "full"):
+        scheme_config["residual_checkpoint"] = residual_checkpoint
 
     config = replace(
         base_config,
-        forward_model_config=fwd_cfg,
+        scheme_name=scheme_name,
+        scheme_config=scheme_config,
+        forward_model_config=get_forward_model_config(setting_name),
     )
 
     print("\n" + "=" * 72)
-    _print_forward_model(setting_name, config)
+    _print_forward_model(scheme_name, config)
     print(f"Initializing with seed: {config.seed}")
     key = jax.random.key(config.seed)
     key_init, key_bptt = jax.random.split(key, 2)
@@ -249,8 +258,7 @@ def _train_one_setting(
 
     return {
         "setting": setting_name,
-        "resacc": config.forward_model_config.enable_residual_acceleration,
-        "innerloop": config.forward_model_config.enable_inner_loop_dynamics,
+        "scheme": scheme_name,
         "final_reward": final_reward,
         "train_time_s": train_time_s,
         "checkpoint": str(actual_checkpoint),
@@ -259,19 +267,15 @@ def _train_one_setting(
 
 def _print_training_summary(rows: list[dict[str, Any]]) -> None:
     print("\nTraining summary:")
-    header = (
-        f"{'setting':<10} {'resacc':<6} {'innerloop':<9} "
-        f"{'final_reward':>12} {'train_time_s':>12} checkpoint"
-    )
+    header = f"{'setting':<16} {'scheme':<14} {'reward':<10} {'time':<10} checkpoint"
     print(header)
     print("-" * len(header))
     for row in rows:
         print(
-            f"{row['setting']:<10} "
-            f"{str(row['resacc'])[0]:<6} "
-            f"{str(row['innerloop'])[0]:<9} "
-            f"{row['final_reward']:>12.2f} "
-            f"{row['train_time_s']:>12.2f} "
+            f"{row['setting']:<16} "
+            f"{row['scheme']:<14} "
+            f"{row['final_reward']:<10.2f} "
+            f"{row['train_time_s']:<10.2f} "
             f"{row['checkpoint']}"
         )
 

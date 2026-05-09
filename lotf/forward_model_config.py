@@ -66,10 +66,10 @@ def coerce_forward_model_config(
     )
 
 
-SETTING_ORDER = ["nominal", "resacc", "innerloop", "full", "approx", "approx_resacc"]
+SETTING_ORDER = ["simplest", "resacc", "innerloop", "full", "approx", "approx_resacc"]
 
 SETTING_SPECS: dict[str, ForwardModelConfig] = {
-    "nominal": ForwardModelConfig(
+    "simplest": ForwardModelConfig(
         enable_residual_acceleration=False,
         enable_inner_loop_dynamics=False,
     ),

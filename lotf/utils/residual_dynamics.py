@@ -10,17 +10,28 @@ from lotf.modules import ResidualDynamicsMLP
 
 
 def get_residual_dyn_model_apply_fn() -> Callable:
+    """Returns a vectorized apply function for the residual dynamics MLP.
+
+    Handles both ensemble-batched params (trained via create_vec_funcs)
+    and single-model params (from a basic checkpoint).
     """
-    Returns a vectorized apply function for the residual dynamics mlp.
-    """
+
     def apply_fn(params, x):
-        # initialize model architecture
         model = ResidualDynamicsMLP([19, 128, 128, 3], initial_scale=1.0)
         return model.apply(params, x)
-    
-    # vectorize over the parameter axis (first axis)
+
     parallel_apply_fn = jax.vmap(apply_fn, in_axes=(0, None))
-    return parallel_apply_fn
+
+    def _apply(params, x):
+        leaves = jax.tree_util.tree_leaves(params)
+        # Ensemble params have extra leading batch dim: max ndim >= 3
+        # Single-model params: max ndim == 2 (kernels are 2D)
+        max_ndim = max(leaf.ndim for leaf in leaves)
+        if max_ndim <= 2:
+            return apply_fn(params, x)[jnp.newaxis, :]
+        return parallel_apply_fn(params, x)
+
+    return _apply
 
 
 @jax.jit
@@ -42,12 +53,13 @@ def full_loss(state: TrainState, x: jax.Array, y: jax.Array, lambda_reg: float) 
 @jax.jit
 def train_step(state: TrainState, x: jax.Array, y: jax.Array, lambda_reg: float) -> TrainState:
     """Performs a single gradient descent update step"""
+
     def loss_fn(params):
         preds = state.apply_fn(params, x)
         mse = jnp.mean((preds - y) ** 2)
         spec_norm = compute_spectral_norm(params)
         return mse + lambda_reg * spec_norm
-    
+
     # compute gradients with respect to params
     grads = jax.grad(loss_fn)(state.params)
 
@@ -61,9 +73,9 @@ def compute_spectral_norm(params: dict) -> jax.Array:
     Approximates regularization by summing the l2-norm of kernel weights.
     """
     reg = 0.0
-    for layer in params['params'].values():
-        if 'kernel' in layer:
-            W = layer['kernel']
+    for layer in params["params"].values():
+        if "kernel" in layer:
+            W = layer["kernel"]
             # compute spectral norm (largest singular value)
             reg += jnp.linalg.norm(W, ord=2)
     return reg
@@ -79,28 +91,27 @@ def init_fn(learning_rate: float, seed: int) -> Tuple[dict, TrainState]:
     """Initializes model parameters and flax trainstate"""
     model = ResidualDynamicsMLP([19, 128, 128, 3], initial_scale=1.0)
     model_params = model.initialize(jax.random.PRNGKey(seed))
-    
+
     # define optimizer
     tx = optax.adam(learning_rate)
-    
-    train_state = TrainState.create(
-        apply_fn=model.apply, params=model_params, tx=tx
-    )
+
+    train_state = TrainState.create(apply_fn=model.apply, params=model_params, tx=tx)
     return model_params, train_state
 
 
-@partial(jax.jit, static_argnames=('lambda_reg', 'num_epochs', 'eval_every'))
+@partial(jax.jit, static_argnames=("lambda_reg", "num_epochs", "eval_every"))
 def train(
-    train_state: TrainState, 
-    X: jax.Array, 
-    y: jax.Array, 
-    lambda_reg: float, 
-    num_epochs: int, 
-    eval_every: int
+    train_state: TrainState,
+    X: jax.Array,
+    y: jax.Array,
+    lambda_reg: float,
+    num_epochs: int,
+    eval_every: int,
 ) -> TrainState:
     """
     JIT-compiled training loop using jax.lax.scan for performance.
     """
+
     def scan_fn(carry, epoch):
         current_state = carry
 
@@ -111,7 +122,7 @@ def train(
             """Helper for conditional side-effect logging"""
             train_mse_loss = mse_loss(state_to_log, X, y)
             train_total_loss = full_loss(state_to_log, X, y, lambda_reg)
-            
+
             jax.debug.print(
                 "Epoch {e}/{t} | Train MSE: {mse} | Total Loss: {loss}",
                 e=epoch,
@@ -120,7 +131,7 @@ def train(
                 loss=train_total_loss,
             )
             return None
-        
+
         # trigger logging only at specified intervals
         jax.lax.cond(epoch % eval_every == 0, do_log, lambda _: None, new_state)
 
