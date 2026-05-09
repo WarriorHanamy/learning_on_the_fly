@@ -19,7 +19,7 @@ from flax.core import FrozenDict
 from orbax.checkpoint import PyTreeCheckpointer
 
 from lotf import LOTF_ROOT
-from lotf.forward_model_config import ForwardModelConfig
+from lotf.forward_model_config import ForwardModelConfig, SETTING_SPECS
 from lotf.objects.quadrotor_obj import Quadrotor, QuadrotorState
 
 from .schema import ControlModel, HoverTarget, StateSample
@@ -42,6 +42,7 @@ class LotfAdapterConfig:
     duration: float = 140.0  # [s]
     setting: str = "full"
     residual_checkpoint: Optional[str] = None
+    approx_path: Optional[str] = None  # path to inner_loop_approx.json
 
     def num_steps(self) -> int:
         return int(self.duration / self.dt)
@@ -149,12 +150,19 @@ class SimAdapter:
     def __init__(self, config: LotfAdapterConfig):
         self._dt = float(config.dt)
 
-        fwd = ForwardModelConfig(
-            enable_residual_acceleration=(config.setting in _SETTING_NEEDS_REAL_RESIDUAL),
-            enable_inner_loop_dynamics=(config.setting in {"innerloop", "full"}),
-        )
+        if config.setting in SETTING_SPECS:
+            fwd = SETTING_SPECS[config.setting]
+        else:
+            fwd = ForwardModelConfig(
+                enable_residual_acceleration=(config.setting in _SETTING_NEEDS_REAL_RESIDUAL),
+                enable_inner_loop_dynamics=(config.setting in {"innerloop", "full"}),
+            )
 
-        self._quad = Quadrotor.from_name("example_quad", fwd.to_dict())
+        fwd_dict = fwd.to_dict()
+        if config.setting == "approx" and config.approx_path is not None:
+            fwd_dict["inner_loop_approx_path"] = config.approx_path
+
+        self._quad = Quadrotor.from_name("example_quad", fwd_dict)
         self._residual_params = _load_residual_params(config.setting, config.residual_checkpoint)
 
         # --- extract universal control model ---

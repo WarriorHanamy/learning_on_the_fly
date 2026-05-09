@@ -29,6 +29,7 @@ dependencies = [
   "viser",
   "nodeenv>=1.10.0",
   "plotly>=6.7.0",
+  "plant-analysis",
 ]
 
 [project.scripts]
@@ -52,6 +53,12 @@ include = ["lotf*", "advanced_control_lib*"]
 [tool.uv.sources]
 minco-python = { path = "deps/minco-python" }
 viser = { path = "deps/viser" }
+plant-analysis = { workspace = true, editable = true }
+
+[tool.uv.workspace]
+members = [
+    "examples/classic_control_hover/plant_analysis",
+]
 
 [dependency-groups]
 dev = [

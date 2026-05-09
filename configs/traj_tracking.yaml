@@ -21,6 +21,8 @@ skip_start: true
 forward_model_config:
   enable_inner_loop_dynamics: false
   enable_residual_acceleration: false
+  enable_inner_loop_approx: false
+  # inner_loop_approx_path: ""  # optional, set when enable_inner_loop_approx is true
 
 # Environment noise parameters
 yaw_scale: 0.1

@@ -148,6 +148,7 @@ Examples:
         default="all",
         help="Forward model setting to train (default: all)",
     )
+    )
     track_parser.add_argument(
         "--residual-checkpoint",
         type=str,
@@ -159,6 +160,12 @@ Examples:
         type=str,
         default=None,
         help="Path to export trajectory CSV file (optional)",
+    )
+    track_parser.add_argument(
+        "--approx-path",
+        type=str,
+        default=None,
+        help="Path to inner_loop_approx.json (required for --setting approx)",
     )
 
     # residual subcommand
@@ -258,6 +265,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         ]
         if args.trajectory_output:
             train_argv.extend(["--trajectory-output", args.trajectory_output])
+        if args.approx_path:
+            train_argv.extend(["--approx-path", args.approx_path])
         return _run_with_argv(train_track, train_argv)
 
     elif args.command == "residual":

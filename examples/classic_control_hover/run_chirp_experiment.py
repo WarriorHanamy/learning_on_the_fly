@@ -162,7 +162,7 @@ Examples:
     )
     parser.add_argument(
         "--setting",
-        choices=["nominal", "resacc", "innerloop", "full"],
+        choices=["nominal", "resacc", "innerloop", "full", "approx", "approx_resacc"],
         default="full",
         help="Simulator forward-model setting (default: full)",
     )
@@ -184,6 +184,12 @@ Examples:
         default=None,
         help="Override residual dynamics checkpoint path",
     )
+    parser.add_argument(
+        "--approx-path",
+        type=str,
+        default=None,
+        help="Path to inner_loop_approx.json (required for --setting approx)",
+    )
     return parser.parse_args(argv)
 
 
@@ -196,6 +202,7 @@ def main(argv: list[str] | None = None) -> int:
         duration=args.duration,
         setting=args.setting,
         residual_checkpoint=args.residual_checkpoint,
+        approx_path=args.approx_path,
     )
     return run_experiment(cfg, adapter_cfg)
 

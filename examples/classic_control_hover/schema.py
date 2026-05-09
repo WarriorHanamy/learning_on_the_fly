@@ -173,3 +173,57 @@ class ControlModel:
     mass_kg: float
     thrust_limits_N: tuple[float, float]  # (min, max) total thrust
     rate_limits_body_radps: np.ndarray  # (3,) [p_max, q_max, r_max]
+
+
+# ============================================================================
+# 9. Chirp analysis intermediate data contracts
+# ============================================================================
+
+
+@dataclass
+class SweepExtract:
+    """Single-channel chirp sweep extracted from ``log.npz`` by segment.
+
+    This is the intermediate format within ``classic_control_hover``,
+    independent of ``plant_analysis``.  It is consumed by
+    ``to_sweep_result()`` in ``chirp_analysis_adapter.py`` to produce
+    a ``plant_analysis.SweepResult``.
+    """
+
+    channel: str  # "thrust" | "p" | "q" | "r"
+    time_s: np.ndarray  # (n,) relative time within chirp window [s]
+    chirp_injected: np.ndarray  # (n,) injected chirp signal (from chirp_offset[ch_idx])
+    input_u: np.ndarray  # (n,) control input (action_total[ch_idx])
+    output_y: np.ndarray  # (n,) measured response
+    #                         thrust → ext_thrust_est_N
+    #                         p/q/r  → omega_body_radps[ch_idx]
+    fs_hz: float  # sampling frequency [Hz]
+    segment_meta: dict  # {f0_hz, f1_hz, amplitude, duration, kind, window_s}
+
+
+@dataclass
+class InnerLoopApprox:
+    """Fitted delayed first-order model for one channel.
+
+    Model:  G(s) = K * exp(-delay * s) / (tau * s + 1)
+    Fitted over the frequency band [freq_min_hz, freq_max_hz].
+    """
+
+    channel: str
+    K: float  # DC gain [-]
+    tau: float  # time constant [s]
+    delay: float  # equivalent transport delay [s]
+    freq_min_hz: float
+    freq_max_hz: float
+    magnitude_rmse_db: float  # magnitude fit RMSE [dB]
+    phase_rmse_deg: float  # phase fit RMSE [deg]
+
+
+@dataclass
+class InnerLoopApproxSet:
+    """Collection of four per-channel delayed first-order approximations."""
+
+    source_setting: str  # "full" | "innerloop" | "nominal" | "resacc"
+    source_log_path: str  # path to source log.npz
+    channels: list[InnerLoopApprox]
+    created_at: str  # ISO 8601 timestamp

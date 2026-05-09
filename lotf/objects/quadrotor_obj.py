@@ -55,6 +55,9 @@ class QuadrotorState(CustomPyTree):
     acc: jax.Array = field_jnp([0.0, 0.0, 0.0])
     res_acc_mean: jax.Array = field_jnp([0.0, 0.0, 0.0])
     dr_key: chex.PRNGKey = field_jnp(jax.random.key(0))
+    # inner-loop approximation state
+    approx_delay_buffer: jax.Array = field_jnp(jnp.zeros((10, 4)))
+    approx_delay_idx: jax.Array = field_jnp(0)
 
     def detached(self):
         """Returns a copy of the state with gradients stopped."""
@@ -68,6 +71,8 @@ class QuadrotorState(CustomPyTree):
             acc=jax.lax.stop_gradient(self.acc),
             res_acc_mean=jax.lax.stop_gradient(self.res_acc_mean),
             dr_key=jax.lax.stop_gradient(self.dr_key),
+            approx_delay_buffer=jax.lax.stop_gradient(self.approx_delay_buffer),
+            approx_delay_idx=jax.lax.stop_gradient(self.approx_delay_idx),
         )
 
     def as_vector(self):
@@ -163,6 +168,34 @@ class Quadrotor:
             }
         self._enable_inner_loop_dynamics = forward_model_config["enable_inner_loop_dynamics"]
         self._enable_residual_acceleration = forward_model_config["enable_residual_acceleration"]
+        self._enable_inner_loop_approx = forward_model_config.get("enable_inner_loop_approx", False)
+
+        # load approximated inner-loop parameters from chirp analysis
+        self._approx_K: jnp.ndarray | None = None
+        self._approx_tau: jnp.ndarray | None = None
+        self._approx_delay: jnp.ndarray | None = None
+        self._approx_max_delay: int = 0
+        if self._enable_inner_loop_approx:
+            approx_path = forward_model_config.get("inner_loop_approx_path", None)
+            if approx_path is None:
+                raise ValueError(
+                    "inner_loop_approx_path is required when enable_inner_loop_approx=True"
+                )
+            import json
+
+            with open(approx_path) as f:
+                data = json.load(f)
+            channels = {ch["channel"]: ch for ch in data["channels"]}
+            self._approx_K = jnp.array([channels[c]["K"] for c in ["thrust", "p", "q", "r"]])
+            self._approx_tau = jnp.array(
+                [max(channels[c]["tau"], 1e-6) for c in ["thrust", "p", "q", "r"]]
+            )
+            self._approx_delay = jnp.array(
+                [channels[c]["delay"] for c in ["thrust", "p", "q", "r"]]
+            )
+            # buffer size: max delay + ceil(1 step) for safety
+            max_delay_s = float(jnp.max(self._approx_delay))
+            self._approx_max_delay = max(int(jnp.ceil(max_delay_s / 0.02)), 1)
 
         # load inference function for residual acceleration
         if self._enable_residual_acceleration:
@@ -336,6 +369,60 @@ class Quadrotor:
             dt = np.round(dt, 5)
             if dt <= 0.0:
                 return state
+
+            # approximated inner-loop: delayed first-order filter → nominal dynamics
+            if self._enable_inner_loop_approx:
+                # only filter body rates p/q/r (thrust passes through unfiltered)
+                omega_d_arr = jnp.asarray(omega_d)
+                u = omega_d_arr.reshape(3)  # (3,) [p, q, r]
+
+                # push current body-rate input into delay buffer
+                buf = state.approx_delay_buffer.at[:, :3]  # only use first 3 cols
+                idx = state.approx_delay_idx.astype(jnp.int32)
+                full_buf = state.approx_delay_buffer
+                full_buf = full_buf.at[idx, :3].set(u)
+                new_idx = (idx + 1) % full_buf.shape[0]
+
+                # compute delayed input for rate channels
+                n_delay = jnp.ceil(self._approx_delay[1:] / jnp.maximum(dt, 1e-9)).astype(jnp.int32)
+                read_pos = (new_idx - 1 - n_delay) % full_buf.shape[0]
+                u_delayed = full_buf[read_pos, jnp.arange(3)]
+
+                # gain-only filter for body rates (tau ≈ 0)
+                omega_filtered = self._approx_K[1:] * u_delayed  # (3,)
+
+                # thrust passes through unfiltered
+                f_d_used = jnp.asarray(f_d)
+
+                # nominal dynamics with residual if enabled
+                res = state.res_acc_mean if self._enable_residual_acceleration else jnp.zeros(3)
+                p_new, R_new, v_new = self._integrate_nominal_dynamics_with_residual(
+                    state.p,
+                    state.R,
+                    state.v,
+                    f_d_used / self._mass,
+                    res,
+                    omega_filtered,
+                    dt,
+                )
+
+                return state.replace(
+                    p=p_new,
+                    R=R_new,
+                    v=v_new,
+                    omega=omega_filtered,
+                    approx_delay_buffer=full_buf,
+                    approx_delay_idx=new_idx.astype(jnp.int32),
+                )
+
+                return state.replace(
+                    p=p_new,
+                    R=R_new,
+                    v=v_new,
+                    omega=omega_filtered,
+                    approx_delay_buffer=buf,
+                    approx_delay_idx=new_idx.astype(jnp.int32),
+                )
 
             # inner-loop forward simulation using low-level control and rk4
             if self._enable_inner_loop_dynamics:

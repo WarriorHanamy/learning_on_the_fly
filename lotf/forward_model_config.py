@@ -17,15 +17,25 @@ class ForwardModelConfig:
         enable_inner_loop_dynamics: Replace ideal body-rate commands with a
             full Betaflight-style low-level controller, motor dynamics, and
             RK4 integration of angular velocity.
+        enable_inner_loop_approx: Replace the full inner-loop dynamics with a
+            per-channel delayed first-order filter fitted from chirp data.
+            Parameters are loaded from ``inner_loop_approx_path``.
+        inner_loop_approx_path: Path to inner_loop_approx.json produced by
+            ``chirp_analysis_adapter.run_analysis()``.  Required when
+            ``enable_inner_loop_approx`` is True.
     """
 
     enable_residual_acceleration: bool = False
     enable_inner_loop_dynamics: bool = False
+    enable_inner_loop_approx: bool = False
+    inner_loop_approx_path: str | None = None
 
-    def to_dict(self) -> dict[str, bool]:
+    def to_dict(self) -> dict[str, bool | str | None]:
         return {
             "enable_residual_acceleration": self.enable_residual_acceleration,
             "enable_inner_loop_dynamics": self.enable_inner_loop_dynamics,
+            "enable_inner_loop_approx": self.enable_inner_loop_approx,
+            "inner_loop_approx_path": self.inner_loop_approx_path,
         }
 
     @classmethod
@@ -33,10 +43,12 @@ class ForwardModelConfig:
         return cls(
             enable_residual_acceleration=d.get("enable_residual_acceleration", False),
             enable_inner_loop_dynamics=d.get("enable_inner_loop_dynamics", False),
+            enable_inner_loop_approx=d.get("enable_inner_loop_approx", False),
+            inner_loop_approx_path=d.get("inner_loop_approx_path", None),
         )
 
 
-SETTING_ORDER = ["nominal", "resacc", "innerloop", "full"]
+SETTING_ORDER = ["nominal", "resacc", "innerloop", "full", "approx", "approx_resacc"]
 
 SETTING_SPECS: dict[str, ForwardModelConfig] = {
     "nominal": ForwardModelConfig(
@@ -54,6 +66,16 @@ SETTING_SPECS: dict[str, ForwardModelConfig] = {
     "full": ForwardModelConfig(
         enable_residual_acceleration=True,
         enable_inner_loop_dynamics=True,
+    ),
+    "approx": ForwardModelConfig(
+        enable_residual_acceleration=False,
+        enable_inner_loop_dynamics=False,
+        enable_inner_loop_approx=True,
+    ),
+    "approx_resacc": ForwardModelConfig(
+        enable_residual_acceleration=True,
+        enable_inner_loop_dynamics=False,
+        enable_inner_loop_approx=True,
     ),
 }
 

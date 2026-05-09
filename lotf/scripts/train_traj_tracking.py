@@ -150,6 +150,13 @@ Examples:
         help="Path to export trajectory CSV file (optional)",
     )
 
+    parser.add_argument(
+        "--approx-path",
+        type=str,
+        default=None,
+        help="Path to inner_loop_approx.json (required for --setting approx)",
+    )
+
     return parser.parse_args()
 
 
@@ -159,6 +166,9 @@ def _print_forward_model(setting_name: str, config: TrajTrackingConfig) -> None:
     print("Forward model:")
     print(f"  enable_residual_acceleration = {str(fwd.enable_residual_acceleration).lower()}")
     print(f"  enable_inner_loop_dynamics = {str(fwd.enable_inner_loop_dynamics).lower()}")
+    if fwd.enable_inner_loop_approx:
+        print(f"  enable_inner_loop_approx = true")
+        print(f"  inner_loop_approx_path = {fwd.inner_loop_approx_path}")
 
 
 def _train_one_setting(
@@ -166,10 +176,15 @@ def _train_one_setting(
     setting_name: str,
     checkpoint_base: str,
     residual_checkpoint: str,
+    approx_path: str | None = None,
 ) -> dict[str, Any]:
+    fwd_cfg = get_forward_model_config(setting_name)
+    if setting_name in ("approx", "approx_resacc") and approx_path is not None:
+        fwd_cfg = replace(fwd_cfg, inner_loop_approx_path=approx_path)
+
     config = replace(
         base_config,
-        forward_model_config=get_forward_model_config(setting_name),
+        forward_model_config=fwd_cfg,
     )
 
     print("\n" + "=" * 72)
@@ -289,6 +304,7 @@ def main() -> int:
                     setting_name,
                     args.checkpoint,
                     args.residual_checkpoint,
+                    approx_path=args.approx_path,
                 )
             )
         except FileNotFoundError:
