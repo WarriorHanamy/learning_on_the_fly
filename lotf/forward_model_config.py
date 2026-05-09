@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -46,6 +48,22 @@ class ForwardModelConfig:
             enable_inner_loop_approx=d.get("enable_inner_loop_approx", False),
             inner_loop_approx_path=d.get("inner_loop_approx_path", None),
         )
+
+
+def coerce_forward_model_config(
+    config: ForwardModelConfig | Mapping[str, Any] | None,
+) -> ForwardModelConfig:
+    """Normalize public forward-model configuration inputs to the schema type."""
+    if config is None:
+        return ForwardModelConfig()
+    if isinstance(config, ForwardModelConfig):
+        return config
+    if isinstance(config, Mapping):
+        return ForwardModelConfig.from_dict(dict(config))
+    raise TypeError(
+        "forward_model_config must be ForwardModelConfig, mapping, or None; "
+        f"got {type(config).__name__}"
+    )
 
 
 SETTING_ORDER = ["nominal", "resacc", "innerloop", "full", "approx", "approx_resacc"]

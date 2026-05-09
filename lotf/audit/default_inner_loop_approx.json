@@ -1,0 +1,47 @@
+{
+  "source_setting": "default-audit-fixture",
+  "source_log_path": "",
+  "created_at": "",
+  "channels": [
+    {
+      "channel": "thrust",
+      "K": 1.0,
+      "tau": 0.0,
+      "delay": 0.0,
+      "freq_min_hz": 0.0,
+      "freq_max_hz": 0.0,
+      "magnitude_rmse_db": 0.0,
+      "phase_rmse_deg": 0.0
+    },
+    {
+      "channel": "p",
+      "K": 1.0,
+      "tau": 0.08,
+      "delay": 0.02,
+      "freq_min_hz": 1.0,
+      "freq_max_hz": 4.0,
+      "magnitude_rmse_db": 0.0,
+      "phase_rmse_deg": 0.0
+    },
+    {
+      "channel": "q",
+      "K": 1.0,
+      "tau": 0.08,
+      "delay": 0.02,
+      "freq_min_hz": 1.0,
+      "freq_max_hz": 4.0,
+      "magnitude_rmse_db": 0.0,
+      "phase_rmse_deg": 0.0
+    },
+    {
+      "channel": "r",
+      "K": 1.0,
+      "tau": 0.08,
+      "delay": 0.02,
+      "freq_min_hz": 1.0,
+      "freq_max_hz": 4.0,
+      "magnitude_rmse_db": 0.0,
+      "phase_rmse_deg": 0.0
+    }
+  ]
+}

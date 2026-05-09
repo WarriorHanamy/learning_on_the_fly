@@ -1,22 +1,22 @@
 from __future__ import annotations
 
 import os
-import numpy as np
-import yaml
 from functools import partial
 
+import chex
 import jax
 import jax.numpy as jnp
 import jax_dataclasses as jdc
-import chex
+import numpy as np
+import yaml
 from flax.core import FrozenDict
 
 from lotf import LOTF_PATH
+from lotf.forward_model_config import coerce_forward_model_config
 from lotf.simulation.model_rotor import AugmentationParams, compute_residuals
-from lotf.utils.pytrees import field_jnp, CustomPyTree
-from lotf.utils.residual_dynamics import get_residual_dyn_model_apply_fn
 from lotf.utils.math import rotation_matrix_from_vector
-
+from lotf.utils.pytrees import CustomPyTree, field_jnp
+from lotf.utils.residual_dynamics import get_residual_dyn_model_apply_fn
 
 # betaflight constants
 P_GAIN_SCALING = 1.818e-3
@@ -161,14 +161,10 @@ class Quadrotor:
         self.rotor_augmentation_model = self.get_rotor_model()
 
         # simulation configuration
-        if forward_model_config is None:
-            forward_model_config = {
-                "enable_inner_loop_dynamics": False,
-                "enable_residual_acceleration": False,
-            }
-        self._enable_inner_loop_dynamics = forward_model_config["enable_inner_loop_dynamics"]
-        self._enable_residual_acceleration = forward_model_config["enable_residual_acceleration"]
-        self._enable_inner_loop_approx = forward_model_config.get("enable_inner_loop_approx", False)
+        forward_model_config = coerce_forward_model_config(forward_model_config)
+        self._enable_inner_loop_dynamics = forward_model_config.enable_inner_loop_dynamics
+        self._enable_residual_acceleration = forward_model_config.enable_residual_acceleration
+        self._enable_inner_loop_approx = forward_model_config.enable_inner_loop_approx
 
         # load approximated inner-loop parameters from chirp analysis
         self._approx_K: jnp.ndarray | None = None
@@ -176,7 +172,7 @@ class Quadrotor:
         self._approx_delay: jnp.ndarray | None = None
         self._approx_max_delay: int = 0
         if self._enable_inner_loop_approx:
-            approx_path = forward_model_config.get("inner_loop_approx_path", None)
+            approx_path = forward_model_config.inner_loop_approx_path
             if approx_path is None:
                 raise ValueError(
                     "inner_loop_approx_path is required when enable_inner_loop_approx=True"
@@ -377,7 +373,6 @@ class Quadrotor:
                 u = omega_d_arr.reshape(3)  # (3,) [p, q, r]
 
                 # push current body-rate input into delay buffer
-                buf = state.approx_delay_buffer.at[:, :3]  # only use first 3 cols
                 idx = state.approx_delay_idx.astype(jnp.int32)
                 full_buf = state.approx_delay_buffer
                 full_buf = full_buf.at[idx, :3].set(u)
@@ -412,15 +407,6 @@ class Quadrotor:
                     v=v_new,
                     omega=omega_filtered,
                     approx_delay_buffer=full_buf,
-                    approx_delay_idx=new_idx.astype(jnp.int32),
-                )
-
-                return state.replace(
-                    p=p_new,
-                    R=R_new,
-                    v=v_new,
-                    omega=omega_filtered,
-                    approx_delay_buffer=buf,
                     approx_delay_idx=new_idx.astype(jnp.int32),
                 )
 
@@ -588,7 +574,7 @@ class Quadrotor:
         J = self.inertial_matrix()
         J_inv = jnp.linalg.inv(J)
         f_T_and_tau = self.allocation_matrix @ f
-        f_T, tau = f_T_and_tau[0], f_T_and_tau[1:]
+        tau = f_T_and_tau[1:]
 
         def int_omega(omega):
             return J_inv @ (tau - jnp.cross(omega, J @ omega) + inertia_torque)
