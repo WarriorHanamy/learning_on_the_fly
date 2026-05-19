@@ -32,6 +32,7 @@ from lotf.forward_model_config import (
     SETTING_ORDER,
     checkpoint_name_for_setting,
 )
+from lotf.objects import Fig8Config
 from lotf.traj_tracking_setup import (
     PolicyNetConfig,
     TrajTrackingConfig,
@@ -50,7 +51,7 @@ class _BenchmarkConfig:
     ref_traj_name: str = "fig8"
     sim_dt: float = 0.02
     delay: float = 0.04
-    max_sim_time: float = 33.0  # 3 laps of fig8 (11.0s each)
+    max_sim_time: float = 12.0  # 1 lap of fig8
     skip_start: bool = True
     yaw_scale: float = 0.0
     pitch_roll_scale: float = 0.0
@@ -59,6 +60,7 @@ class _BenchmarkConfig:
     omega_std: float = 0.0
     policy_net_hidden_layers: list[int] = field(default_factory=lambda: [512, 512])
     policy_net_initial_scale: float = 0.01
+    fig8_config: Fig8Config = field(default_factory=Fig8Config)
     num_rollouts: int = 20
     seed: int = 0
 
@@ -88,6 +90,7 @@ class _BenchmarkConfig:
             omega_std=env.get("omega_std", 0.0),
             policy_net_hidden_layers=pnet.get("hidden_layers", [512, 512]),
             policy_net_initial_scale=pnet.get("initial_scale", 0.01),
+            fig8_config=Fig8Config.from_dict(raw.get("fig8_config")),
             num_rollouts=bench.get("num_rollouts", 20),
             seed=bench.get("seed", 0),
         )
@@ -276,6 +279,7 @@ def main() -> int:
         max_sim_time=benchmark_cfg.max_sim_time,
         delay=benchmark_cfg.delay,
         ref_traj_name=benchmark_cfg.ref_traj_name,
+        fig8_config=benchmark_cfg.fig8_config,
         skip_start=benchmark_cfg.skip_start,
         scheme_name="full",
         scheme_config={"residual_checkpoint": residual_path},

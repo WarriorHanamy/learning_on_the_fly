@@ -19,16 +19,16 @@ from orbax.checkpoint import PyTreeCheckpointer
 from lotf import LOTF_ROOT, resolve_path
 from lotf.forward_model_config import ForwardModelConfig
 from lotf.modules import MLP
-from lotf.objects import Quadrotor
+from lotf.objects import Fig8Config, Quadrotor
 from lotf.schemes import build_scheme
 from lotf.schemes.configs import (
-    QuadrotorParams,
-    SimplestConfig,
-    ResAccConfig,
     ApproxConfig,
     ApproxResAccConfig,
-    InnerLoopConfig,
     FullConfig,
+    InnerLoopConfig,
+    QuadrotorParams,
+    ResAccConfig,
+    SimplestConfig,
 )
 
 # ---------------------------------------------------------------------------
@@ -65,6 +65,8 @@ class TrajTrackingConfig:
         max_sim_time: Maximum simulation time per episode [s].
         delay: Action delay [s].
         ref_traj_name: Reference trajectory name (CIRCLE, FIG8, STAR).
+        fig8_config: Configuration for the fig8 trajectory generator.
+            Ignored when ref_traj_name is not "fig8".
         skip_start: Skip initial speedup portion of trajectory.
         forward_model_config: Forward model fidelity flags.
         yaw_scale: Yaw randomization scale.
@@ -81,9 +83,10 @@ class TrajTrackingConfig:
     max_epochs: int = 300
     window_size: int = 50
     sim_dt: float = 0.02
-    max_sim_time: float = 5.0
+    max_sim_time: float = 12.0
     delay: float = 0.04
     ref_traj_name: str = "fig8"
+    fig8_config: Fig8Config = field(default_factory=Fig8Config)
     skip_start: bool = True
     forward_model_config: ForwardModelConfig = field(default_factory=ForwardModelConfig)
     scheme_name: str = "simplest"
@@ -129,6 +132,8 @@ class TrajTrackingConfig:
             scheduler=optimizer_dict.get("scheduler", "cosine_decay"),
         )
 
+        fig8_config = Fig8Config.from_dict(raw_config.get("fig8_config"))
+
         return cls(
             seed=raw_config.get("seed", 0),
             num_envs=raw_config.get("num_envs", 300),
@@ -138,6 +143,7 @@ class TrajTrackingConfig:
             max_sim_time=raw_config.get("max_sim_time", 5.0),
             delay=raw_config.get("delay", 0.04),
             ref_traj_name=raw_config.get("ref_traj_name", "FIG8"),
+            fig8_config=fig8_config,
             skip_start=raw_config.get("skip_start", True),
             forward_model_config=forward_model_config,
             scheme_name=scheme_name,
@@ -281,6 +287,7 @@ def build_traj_tracking_env(
         omega_std=config.omega_std,
         quad_obj=quad_obj,
         ref_traj_name=config.ref_traj_name,
+        fig8_config=config.fig8_config,
         skip_start=config.skip_start,
     )
 

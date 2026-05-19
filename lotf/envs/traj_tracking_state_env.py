@@ -1,33 +1,34 @@
 import csv
 from functools import partial
 from typing import Optional
-import numpy as np
-from matplotlib import pyplot as plt
-import seaborn as sns
-from tqdm import tqdm
 
 import chex
 import jax
 import jax_dataclasses as jdc
+import numpy as np
+import seaborn as sns
+from flax.core import FrozenDict
 from jax import numpy as jnp
 from jax.scipy.spatial.transform import Rotation
-from flax.core import FrozenDict
+from matplotlib import pyplot as plt
+from tqdm import tqdm
 
+import lotf.envs.env_base as env_base
+from lotf.envs.env_base import EnvTransition
 from lotf.objects import (
+    Fig8Config,
     Quadrotor,
     QuadrotorState,
-    WorldBox,
     ReferenceTraj,
     RefTrajNames,
     TrajColumns,
+    WorldBox,
 )
 from lotf.utils import math as math_utils
 from lotf.utils import spaces
+from lotf.utils.math import rot_to_quat, smooth_l1
 from lotf.utils.pytrees import pytree_get_item, stack_pytrees
-from lotf.utils.math import smooth_l1, rot_to_quat
 from lotf.utils.random import random_rotation
-import lotf.envs.env_base as env_base
-from lotf.envs.env_base import EnvTransition
 
 
 @jdc.pytree_dataclass
@@ -69,6 +70,7 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
         quad_obj=None,
         num_last_quad_states=10,
         ref_traj_name: str = RefTrajNames.CIRCLE.value,
+        fig8_config: Fig8Config | None = None,
         from_start=False,
         skip_start=False,
         train_from_start=False,
@@ -107,7 +109,7 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
         self.num_last_quad_states = num_last_quad_states
 
         # load reference trajectory data
-        ref_traj_obj = ReferenceTraj.from_name(ref_traj_name)
+        ref_traj_obj = ReferenceTraj.from_name(ref_traj_name, fig8_config=fig8_config)
         self.ref_traj = ref_traj_obj.ref_traj
         self.num_ref_traj_points = ref_traj_obj.num_waypoints
         self.min_init_ref_traj_idx = 0

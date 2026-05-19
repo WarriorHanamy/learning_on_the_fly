@@ -5,10 +5,17 @@
 task: traj_tracking
 ref_traj_name: fig8
 
+# Figure-8 trajectory generator parameters (optional, defaults shown)
+fig8_config:
+  a: 4.0          # Lemniscate amplitude [m]
+  height: 1.0     # Constant flight height [m]
+  duration: 12.0  # Total trajectory duration [s]
+  num_points: 600 # Number of waypoints
+
 env:
   sim_dt: 0.02
   delay: 0.04
-  max_sim_time: 10.0
+  max_sim_time: 12.0       # align to fig8 duration (1 full lap)
   skip_start: true
   # noise zeroed for deterministic evaluation
   yaw_scale: 0.0
