@@ -6,8 +6,8 @@ seed: 0
 
 # Training parameters
 num_envs: 300
-max_epochs: 500
-window_size: 50
+max_epochs: 300
+window_size: 0
 
 # Simulation parameters
 sim_dt: 0.02
