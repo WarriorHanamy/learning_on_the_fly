@@ -239,6 +239,7 @@ def _train_one_setting(
         num_epochs=config.max_epochs,
         num_steps_per_epoch=env.max_steps_in_episode,
         num_envs=config.num_envs,
+        window_size=config.window_size,
         res_model_params=residual_params,
         key=key_bptt,
     )

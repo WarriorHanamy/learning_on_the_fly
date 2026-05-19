@@ -60,6 +60,7 @@ class TrajTrackingConfig:
         seed: Random seed for reproducibility.
         num_envs: Number of parallel environments (training only).
         max_epochs: Maximum number of training epochs (training only).
+        window_size: Steps per gradient window in truncated BPTT (0 = full trajectory).
         sim_dt: Simulation time step [s].
         max_sim_time: Maximum simulation time per episode [s].
         delay: Action delay [s].
@@ -78,6 +79,7 @@ class TrajTrackingConfig:
     seed: int = 0
     num_envs: int = 300
     max_epochs: int = 300
+    window_size: int = 50
     sim_dt: float = 0.02
     max_sim_time: float = 5.0
     delay: float = 0.04
@@ -131,6 +133,7 @@ class TrajTrackingConfig:
             seed=raw_config.get("seed", 0),
             num_envs=raw_config.get("num_envs", 300),
             max_epochs=raw_config.get("max_epochs", 300),
+            window_size=raw_config.get("window_size", 50),
             sim_dt=raw_config.get("sim_dt", 0.02),
             max_sim_time=raw_config.get("max_sim_time", 5.0),
             delay=raw_config.get("delay", 0.04),
