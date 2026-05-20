@@ -4,9 +4,9 @@ from typing import NamedTuple
 import chex
 import jax
 import jax.numpy as jnp
+from flax.core import FrozenDict
 from flax.struct import PyTreeNode
 from flax.training.train_state import TrainState
-from flax.core import FrozenDict
 
 from lotf.envs.env_base import Env, EnvState
 
@@ -15,6 +15,7 @@ class TrajectoryState(PyTreeNode):
     """Holds the transition data collected during a rollout."""
 
     reward: jnp.array
+    obs: jnp.array
 
 
 def progress_callback_host(episode_loss):
@@ -55,7 +56,7 @@ def grad_callback(episode, grad_norm):
 class RunnerState(NamedTuple):
     """Represents the complete state of the training loop."""
 
-    train_state: TrainState
+    actor_train_state: TrainState
     env_state: EnvState
     last_obs: jax.Array
     key: chex.PRNGKey
@@ -74,16 +75,16 @@ def _make_step_fn(num_envs, res_model_params, env):
         A step_fn callable compatible with jax.lax.scan.
     """
 
-    def step_fn(runner_state, params, _unused):
-        train_state, env_state, last_obs, key, epoch_idx = runner_state
-        action = train_state.apply_fn(params, last_obs)
+    def step_fn(runner_state, actor_params, _unused):
+        actor_ts, env_state, last_obs, key, epoch_idx = runner_state
+        action = actor_ts.apply_fn(actor_params, last_obs)
         key, key_ = jax.random.split(key)
         key_step = jax.random.split(key_, num_envs)
         env_state, obs, reward, _terminated, _truncated, info = env.step(
             env_state, action, res_model_params, key_step
         )
-        runner_state = RunnerState(train_state, env_state, obs, key, epoch_idx)
-        return runner_state, TrajectoryState(reward=reward)
+        runner_state = RunnerState(actor_ts, env_state, obs, key, epoch_idx)
+        return runner_state, TrajectoryState(reward=reward, obs=last_obs)
 
     return step_fn
 
@@ -92,11 +93,11 @@ def _full_trajectory_epoch_fn(epoch_state, _unused, num_steps_per_epoch, num_env
     """Original epoch function: one gradient over the full trajectory."""
 
     @partial(jax.value_and_grad, has_aux=True)
-    def loss_fn(params, runner_state):
+    def loss_fn(actor_params, runner_state):
 
         def rollout(rs):
             def _step(rs_inner, u):
-                return step_fn(rs_inner, params, u)
+                return step_fn(rs_inner, actor_params, u)
 
             final_rs, traj = jax.lax.scan(_step, rs, None, num_steps_per_epoch)
             return final_rs, traj
@@ -105,9 +106,9 @@ def _full_trajectory_epoch_fn(epoch_state, _unused, num_steps_per_epoch, num_env
         loss = -traj.reward.sum() / num_envs
         return loss, final_rs
 
-    train_state = epoch_state.train_state
-    (loss, epoch_state), grad = loss_fn(train_state.params, epoch_state)
-    train_state = train_state.apply_gradients(grads=grad)
+    actor_ts = epoch_state.actor_train_state
+    (loss, epoch_state), grad = loss_fn(actor_ts.params, epoch_state)
+    actor_ts = actor_ts.apply_gradients(grads=grad)
 
     leaves = jax.tree_util.tree_leaves(grad)
     grad_vec = jnp.concatenate([jnp.ravel(leaf) for leaf in leaves])
@@ -116,83 +117,42 @@ def _full_trajectory_epoch_fn(epoch_state, _unused, num_steps_per_epoch, num_env
     progress_callback(epoch_state.epoch_idx, loss)
     grad_callback(epoch_state.epoch_idx, grad_max)
 
-    epoch_state = epoch_state._replace(train_state=train_state, epoch_idx=epoch_state.epoch_idx + 1)
+    epoch_state = epoch_state._replace(
+        actor_train_state=actor_ts, epoch_idx=epoch_state.epoch_idx + 1
+    )
     return epoch_state, loss
-
-
-def _windowed_epoch_fn(epoch_state, _unused, num_windows, window_size, num_envs, step_fn):
-    """Windowed (truncated BPTT) epoch: multiple gradient updates per epoch.
-
-    Each window runs a short rollout, computes the gradient over that window
-    only, and applies the update before moving to the next window.  State
-    between windows is detached with stop_gradient to prevent gradient flow
-    across windows.
-    """
-
-    def window_body(carry, _):
-        train_state, rs = carry
-
-        @partial(jax.value_and_grad, has_aux=True)
-        def window_loss(params, rs_local):
-
-            def _step(rs_inner, u):
-                return step_fn(rs_inner, params, u)
-
-            new_rs, traj = jax.lax.scan(_step, rs_local, None, window_size)
-            loss = -traj.reward.sum() / num_envs
-            return loss, new_rs
-
-        (loss, new_rs), grad = window_loss(train_state.params, rs)
-        train_state = train_state.apply_gradients(grads=grad)
-        new_rs = jax.lax.stop_gradient(new_rs)
-        return (train_state, new_rs), loss
-
-    carry = (epoch_state.train_state, epoch_state)
-    (train_state, rs), window_losses = jax.lax.scan(window_body, carry, None, num_windows)
-
-    total_loss = window_losses.sum()
-
-    progress_callback(epoch_state.epoch_idx, total_loss)
-    grad_callback(epoch_state.epoch_idx, jnp.float32(0.0))
-
-    epoch_state = rs._replace(train_state=train_state, epoch_idx=epoch_state.epoch_idx + 1)
-    return epoch_state, total_loss
 
 
 def train(
     env: Env,
     env_state: EnvState,
     obs: jax.Array,
-    train_state: TrainState,
+    actor_train_state: TrainState,
     num_epochs: int,
     num_steps_per_epoch: int,
     num_envs: int,
     res_model_params: FrozenDict,
     key: chex.PRNGKey,
-    window_size: int = 50,
+    window_size: int = 0,
 ):
-    """Executes the training loop for a given environment using JAX transformations.
+    """Executes a full-trajectory BPTT training loop.
 
     Args:
         env: the environment instance.
         env_state: the initial state of the environment.
         obs: the initial observation.
-        train_state: the flax train state containing params and optimizer.
+        actor_train_state: the flax train state containing actor params and optimizer.
         num_epochs: total number of training iterations.
         num_steps_per_epoch: rollout length per epoch.
         num_envs: number of parallel environments.
         res_model_params: fixed parameters for the residual dynamics model.
         key: rng key for stochastic operations.
-        window_size: steps per gradient window in truncated BPTT.
-                     0 or negative = full-trajectory gradient (original behaviour).
-                     Positive = split epoch into windows of this size.
+        window_size: *unused* (routing hint, kept for compatibility).
 
     Returns:
         a dictionary containing the final runner state and training metrics.
     """
-    num_windows = num_steps_per_epoch // window_size if window_size > 0 else 0
-
-    runner_state = RunnerState(train_state, env_state, obs, key, epoch_idx=0)
+    runner_state = RunnerState(actor_train_state, env_state, obs, key, epoch_idx=0)
     step_fn = _make_step_fn(num_envs, res_model_params, env)
 
     @partial(jax.jit, static_argnums=(0, 1, 2, 3, 4))
@@ -200,19 +160,18 @@ def train(
         env,
         num_steps_per_epoch,
         num_envs,
-        num_windows,
         window_size,
+        _gamma,
         res_model_params: FrozenDict,
         runner_state: RunnerState,
     ):
-        if num_windows > 0:
-            return _windowed_epoch_fn(
-                runner_state, None, num_windows, window_size, num_envs, step_fn
-            )
-        else:
-            return _full_trajectory_epoch_fn(
-                runner_state, None, num_steps_per_epoch, num_envs, step_fn
-            )
+        return _full_trajectory_epoch_fn(
+            runner_state,
+            None,
+            num_steps_per_epoch,
+            num_envs,
+            step_fn,
+        )
 
     losses = []
     for _ in range(num_epochs):
@@ -221,8 +180,8 @@ def train(
                 env,
                 num_steps_per_epoch,
                 num_envs,
-                num_windows,
-                window_size,
+                0,
+                0.0,
                 res_model_params,
                 runner_state,
             )

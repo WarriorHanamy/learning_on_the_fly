@@ -27,11 +27,14 @@ class ApproxResAccScheme:
             data = json.load(f)
         channels = {ch["channel"]: ch for ch in data["channels"]}
 
-        self._approx_K = jnp.array([channels[c]["K"] for c in ["thrust", "p", "q", "r"]])
+        def _get(channel: str, key: str, default: float) -> float:
+            return channels[channel][key] if channel in channels else default
+
+        self._approx_K = jnp.array([_get(c, "K", 1.0) for c in ["thrust", "p", "q", "r"]])
         self._approx_tau = jnp.array(
-            [max(channels[c]["tau"], 1e-6) for c in ["thrust", "p", "q", "r"]]
+            [max(_get(c, "tau", 1e-6), 1e-6) for c in ["thrust", "p", "q", "r"]]
         )
-        self._approx_delay = jnp.array([channels[c]["delay"] for c in ["thrust", "p", "q", "r"]])
+        self._approx_delay = jnp.array([_get(c, "delay", 0.0) for c in ["thrust", "p", "q", "r"]])
         max_delay_s = float(jnp.max(self._approx_delay))
         self._approx_max_delay = max(int(jnp.ceil(max_delay_s / 0.02)), 1)
 

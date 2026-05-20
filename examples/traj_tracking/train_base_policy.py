@@ -178,6 +178,6 @@ policy_name = "my_traj_tracking_params"
 
 path = LOTF_PATH + "/../checkpoints/policy/" + policy_name
 ckptr = PyTreeCheckpointer()
-trained_policy_params = res_dict["runner_state"].train_state.params
+trained_policy_params = res_dict["runner_state"].actor_train_state.params
 ckptr.save(path, trained_policy_params)
 print("Policy saved successfully!")

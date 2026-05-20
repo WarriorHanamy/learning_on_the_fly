@@ -68,6 +68,8 @@ def coerce_forward_model_config(
 
 SETTING_ORDER = ["simplest", "resacc", "innerloop", "full", "approx", "approx_resacc"]
 
+DEFAULT_SETTINGS = ["simplest", "resacc", "innerloop", "full"]
+
 SETTING_SPECS: dict[str, ForwardModelConfig] = {
     "simplest": ForwardModelConfig(
         enable_residual_acceleration=False,

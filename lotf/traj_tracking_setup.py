@@ -18,7 +18,7 @@ from orbax.checkpoint import PyTreeCheckpointer
 
 from lotf import LOTF_ROOT, resolve_path
 from lotf.forward_model_config import ForwardModelConfig
-from lotf.modules import MLP
+from lotf.modules import MLP, CriticMLP
 from lotf.objects import Fig8Config, Quadrotor
 from lotf.schemes import build_scheme
 from lotf.schemes.configs import (
@@ -42,6 +42,14 @@ class PolicyNetConfig:
 
     hidden_layers: list[int] = field(default_factory=lambda: [512, 512])
     initial_scale: float = 0.01
+
+
+@dataclass
+class CriticNetConfig:
+    """Critic (value function) network architecture configuration."""
+
+    hidden_layers: list[int] = field(default_factory=lambda: [256, 256])
+    initial_scale: float = 1.0
 
 
 @dataclass
@@ -81,7 +89,14 @@ class TrajTrackingConfig:
     seed: int = 0
     num_envs: int = 300
     max_epochs: int = 300
-    window_size: int = 50
+    window_size: int = 0
+    gamma: float = 0.99
+    lam: float = 0.95
+    vf_coef: float = 0.5  # unused by SHAC, kept for backward compat
+    critic_method: str = "td-lambda"
+    critic_iterations: int = 16
+    target_critic_alpha: float = 0.4
+    critic_batch_size: int | None = None
     sim_dt: float = 0.02
     max_sim_time: float = 12.0
     delay: float = 0.04
@@ -97,6 +112,7 @@ class TrajTrackingConfig:
     velocity_std: float = 0.1
     omega_std: float = 0.1
     policy_net: PolicyNetConfig = field(default_factory=PolicyNetConfig)
+    critic_net: CriticNetConfig = field(default_factory=CriticNetConfig)
     optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)
 
     @classmethod
@@ -126,6 +142,12 @@ class TrajTrackingConfig:
             initial_scale=policy_net_dict.get("initial_scale", 0.01),
         )
 
+        critic_net_dict = raw_config.get("critic_net", {})
+        critic_net = CriticNetConfig(
+            hidden_layers=critic_net_dict.get("hidden_layers", [256, 256]),
+            initial_scale=critic_net_dict.get("initial_scale", 1.0),
+        )
+
         optimizer_dict = raw_config.get("optimizer", {})
         optimizer = OptimizerConfig(
             initial_lr=optimizer_dict.get("initial_lr", 0.001),
@@ -138,7 +160,14 @@ class TrajTrackingConfig:
             seed=raw_config.get("seed", 0),
             num_envs=raw_config.get("num_envs", 300),
             max_epochs=raw_config.get("max_epochs", 300),
-            window_size=raw_config.get("window_size", 50),
+            window_size=raw_config.get("window_size", 0),
+            gamma=raw_config.get("gamma", 0.99),
+            lam=raw_config.get("lam", 0.95),
+            vf_coef=raw_config.get("vf_coef", 0.5),
+            critic_method=raw_config.get("critic_method", "td-lambda"),
+            critic_iterations=raw_config.get("critic_iterations", 16),
+            target_critic_alpha=raw_config.get("target_critic_alpha", 0.4),
+            critic_batch_size=raw_config.get("critic_batch_size"),
             sim_dt=raw_config.get("sim_dt", 0.02),
             max_sim_time=raw_config.get("max_sim_time", 5.0),
             delay=raw_config.get("delay", 0.04),
@@ -154,6 +183,7 @@ class TrajTrackingConfig:
             velocity_std=raw_config.get("velocity_std", 0.1),
             omega_std=raw_config.get("omega_std", 0.1),
             policy_net=policy_net,
+            critic_net=critic_net,
             optimizer=optimizer,
         )
 
@@ -305,8 +335,8 @@ def build_policy_train_state(
     config: TrajTrackingConfig,
     env,
     key: jax.Array,
-) -> TrainState:
-    """Build a Flax TrainState with an MLP policy and optimizer.
+) -> tuple[TrainState, TrainState | None]:
+    """Build Flax TrainStates for actor and (optionally) critic.
 
     Args:
         config: Trajectory tracking configuration.
@@ -314,24 +344,40 @@ def build_policy_train_state(
         key: JAX PRNG key for parameter initialisation.
 
     Returns:
-        TrainState ready for training.
+        (actor_train_state, critic_train_state).  ``critic_train_state`` is
+        ``None`` when ``window_size == 0`` (full-BPTT mode).
     """
     action_dim = env.action_space.shape[0]
     obs_dim = env.observation_space.shape[0]
 
     layer_sizes = [obs_dim] + config.policy_net.hidden_layers + [action_dim]
-
-    policy_net = MLP(
+    actor = MLP(
         layer_sizes,
         initial_scale=config.policy_net.initial_scale,
         action_bias=getattr(env, "hovering_action", None),
     )
-    policy_params = policy_net.initialize(key)
+    actor_params = actor.initialize(key)
 
     scheduler = optax.cosine_decay_schedule(config.optimizer.initial_lr, config.max_epochs)
     tx = optax.adam(scheduler)
+    actor_ts = TrainState.create(apply_fn=actor.apply, params=actor_params, tx=tx)
 
-    return TrainState.create(apply_fn=policy_net.apply, params=policy_params, tx=tx)
+    use_critic = config.window_size > 0
+    if use_critic:
+        key, key_c = jax.random.split(key)
+        critic_sizes = [obs_dim] + config.critic_net.hidden_layers + [1]
+        critic = CriticMLP(
+            critic_sizes,
+            initial_scale=config.critic_net.initial_scale,
+        )
+        critic_params = critic.initialize(key_c)
+        critic_ts = TrainState.create(
+            apply_fn=critic.apply, params=critic_params, tx=optax.adam(scheduler)
+        )
+    else:
+        critic_ts = None
+
+    return actor_ts, critic_ts
 
 
 def load_policy_fn(

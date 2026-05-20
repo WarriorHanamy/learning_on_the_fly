@@ -201,13 +201,19 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
         return state, obs
 
     def _get_obs(self, state: EnvState) -> jax.Array:
-        """Extracts observation vector from state."""
+        """Extracts observation vector from state including reference context."""
+        target_idx = state.init_ref_traj_idx + state.step_idx
+        target_idx = jnp.clip(target_idx, 0, self.num_ref_traj_points - 1)
+        pos_target = jnp.array(self.ref_traj[target_idx, TrajColumns.POS.slice])
+        vel_target = jnp.array(self.ref_traj[target_idx, TrajColumns.VEL.slice])
         return jnp.concatenate(
             [
                 state.quadrotor_state.p,
                 math_utils.vec(state.quadrotor_state.R),
                 state.quadrotor_state.v,
                 state.last_actions.flatten(),
+                pos_target,
+                vel_target,
             ]
         )
 
@@ -302,12 +308,26 @@ class TrajTrackingStateEnv(env_base.Env[EnvState]):
 
         return spaces.Box(
             low=jnp.concatenate(
-                [self.world_box.min, -jnp.ones(9), self.v_min, action_low_repeated]
+                [
+                    self.world_box.min,
+                    -jnp.ones(9),
+                    self.v_min,
+                    action_low_repeated,
+                    self.world_box.min,
+                    self.v_min,
+                ]
             ),
             high=jnp.concatenate(
-                [self.world_box.max, jnp.ones(9), self.v_max, action_high_repeated]
+                [
+                    self.world_box.max,
+                    jnp.ones(9),
+                    self.v_max,
+                    action_high_repeated,
+                    self.world_box.max,
+                    self.v_max,
+                ]
             ),
-            shape=(15 + n * 4,),
+            shape=(n * 4 + 21,),  # p(3) + R(9) + v(3) + pos_target(3) + vel_target(3)
         )
 
     @classmethod

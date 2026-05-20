@@ -29,6 +29,7 @@ from lotf.eval.runner import (
     run_benchmark_suite,
 )
 from lotf.forward_model_config import (
+    DEFAULT_SETTINGS,
     SETTING_ORDER,
     checkpoint_name_for_setting,
 )
@@ -308,7 +309,7 @@ def main() -> int:
     discovered = None
     if not args.checkpoint:
         discovered = _discover_latest_setting_checkpoints(args.checkpoint_stem)
-        target_settings = SETTING_ORDER if args.setting == "all" else [args.setting]
+        target_settings = DEFAULT_SETTINGS if args.setting == "all" else [args.setting]
         missing = [s for s in target_settings if s not in discovered]
         if missing:
             _print_missing_settings(args.checkpoint_stem, discovered)

@@ -1,6 +1,5 @@
 from functools import partial
-from typing import Any, Dict, Generic, Optional, TypeVar
-from typing import NamedTuple
+from typing import Any, Dict, Generic, NamedTuple, Optional, TypeVar
 
 import chex
 import jax
@@ -16,6 +15,7 @@ TEnvState = TypeVar("TEnvState", bound="EnvState")
 
 class EnvTransition(NamedTuple):
     """Container for a single environment transition."""
+
     state: TEnvState
     obs: jnp.ndarray
     reward: jnp.ndarray
@@ -27,6 +27,7 @@ class EnvTransition(NamedTuple):
 @jdc.pytree_dataclass
 class EnvState(CustomPyTree):
     """Base class for environment states using pytree registration."""
+
     pass
 
 
@@ -50,19 +51,21 @@ class Env(Generic[TEnvState]):
             an EnvTransition containing the next state or reset state.
         """
         key_step, key_reset = jax.random.split(key)
-        
+
         # perform the underlying environment physics/logic step
         step_state, step_obs, reward, terminated, truncated, info = self._step(
             state, action, res_model_params, key_step
         )
-        
+
         # prepare potential reset state
         reset_state, reset_obs = self.reset(key_reset, state)
-        
+
         # auto-reset state if termination or truncation occurs
         done = jnp.logical_or(terminated, truncated)
         state = tree_select(done, reset_state, step_state)
         obs = tree_select(done, reset_obs, step_obs)
+
+        info = dict(info, obs_before_reset=step_obs)
 
         return EnvTransition(state, obs, reward, terminated, truncated, info)
 
@@ -127,33 +130,31 @@ def rollout(
     """
     if num_steps is None:
         num_steps = env.max_steps_in_episode
-        
+
     state, obs = env.reset(key, state)
-    
+
     # initialize transition container for concatenation
-    trans_init = EnvTransition(
-        state, obs, jnp.array(0), jnp.array(0), jnp.array(0), dict()
-    )
+    trans_init = EnvTransition(state, obs, jnp.array(0), jnp.array(0), jnp.array(0), dict())
 
     def step_fn(step_state, key_step):
         env_state, obs = step_state
         key_policy, key_step = jax.random.split(key_step)
-        
+
         # sample action from policy
         action = policy(obs, key_policy)
-        
+
         # select between auto-resetting step or raw transition
         if real_step:
             trans = env.step(env_state, action, res_model_params, key_step)
         else:
             trans = env._step(env_state, action, res_model_params, key_step)
-            
+
         return (trans.state, trans.obs), trans
 
     # scan over time steps
     keys_steps = jax.random.split(key, num_steps)
     _, transitions = jax.lax.scan(step_fn, (state, obs), keys_steps)
-    
+
     # prepend the initial state to the trajectory
     transitions = jax.tree.map(
         lambda l0, l1: jnp.concatenate([l0[None], l1]), trans_init, transitions

@@ -29,9 +29,10 @@ import jax
 from orbax.checkpoint import PyTreeCheckpointer
 
 from lotf import LOTF_ROOT, resolve_path
-from lotf.algos import bptt
+from lotf.algos import get_train_fn
 from lotf.envs import TrajTrackingStateEnv
 from lotf.forward_model_config import (
+    DEFAULT_SETTINGS,
     SETTING_ORDER,
     checkpoint_name_for_setting,
     get_forward_model_config,
@@ -167,7 +168,7 @@ def _print_forward_model(setting_name: str, config: TrajTrackingConfig) -> None:
     print(f"  enable_residual_acceleration = {str(fwd.enable_residual_acceleration).lower()}")
     print(f"  enable_inner_loop_dynamics = {str(fwd.enable_inner_loop_dynamics).lower()}")
     if fwd.enable_inner_loop_approx:
-        print(f"  enable_inner_loop_approx = true")
+        print("  enable_inner_loop_approx = true")
         print(f"  inner_loop_approx_path = {fwd.inner_loop_approx_path}")
 
 
@@ -214,7 +215,7 @@ def _train_one_setting(
     print(f"  max_steps_in_episode: {env.max_steps_in_episode}")
 
     print("Creating policy network...")
-    train_state = build_policy_train_state(config, env, key_init)
+    actor_ts, critic_ts = build_policy_train_state(config, env, key_init)
 
     try:
         residual_params = load_residual_params_for_setting(setting_name, residual_checkpoint)
@@ -231,11 +232,12 @@ def _train_one_setting(
     print("-" * 50)
 
     time_start = time.time()
-    res_dict = bptt.train(
-        env,
-        init_env_state,
-        init_obs,
-        train_state,
+
+    train_kwargs: dict[str, Any] = dict(
+        env=env,
+        env_state=init_env_state,
+        obs=init_obs,
+        actor_train_state=actor_ts,
         num_epochs=config.max_epochs,
         num_steps_per_epoch=env.max_steps_in_episode,
         num_envs=config.num_envs,
@@ -243,6 +245,20 @@ def _train_one_setting(
         res_model_params=residual_params,
         key=key_bptt,
     )
+
+    if config.window_size > 0:
+        train_kwargs.update(
+            gamma=config.gamma,
+            lam=config.lam,
+            critic_train_state=critic_ts,
+            critic_method=config.critic_method,
+            critic_iterations=config.critic_iterations,
+            target_critic_alpha=config.target_critic_alpha,
+            critic_batch_size=config.critic_batch_size,
+        )
+
+    train_fn = get_train_fn(config.window_size)
+    res_dict = train_fn(**train_kwargs)
     train_time_s = time.time() - time_start
 
     print("-" * 50)
@@ -254,7 +270,7 @@ def _train_one_setting(
     print(f"Final reward: {final_reward:.2f}")
 
     checkpoint_path = checkpoint_name_for_setting(checkpoint_base, setting_name)
-    trained_policy_params = res_dict["runner_state"].train_state.params
+    trained_policy_params = res_dict["runner_state"].actor_train_state.params
     actual_checkpoint = save_checkpoint_return_path(str(checkpoint_path), trained_policy_params)
 
     return {
@@ -299,7 +315,7 @@ def main() -> int:
         print(f"Error parsing config: {e}", file=sys.stderr)
         return 1
 
-    settings = SETTING_ORDER if args.setting == "all" else [args.setting]
+    settings = DEFAULT_SETTINGS if args.setting == "all" else [args.setting]
     rows = []
     for setting_name in settings:
         try:

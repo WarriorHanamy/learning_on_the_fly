@@ -238,69 +238,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         train_argv += ["--approx-path", args.approx_path]
     return _run_with_argv(train_track, train_argv)
 
-    # Dispatch to subcommand handlers
-    if args.command == "track":
-        from lotf.scripts.train_traj_tracking import main as train_track
-
-        train_argv = [
-            "train_traj_tracking",
-            "--config",
-            args.config,
-            "--checkpoint",
-            args.checkpoint,
-            "--setting",
-            str(args.setting),
-            "--residual-checkpoint",
-            args.residual_checkpoint,
-        ]
-        if args.trajectory_output:
-            train_argv += ["--trajectory-output", args.trajectory_output]
-        if args.approx_path:
-            train_argv += ["--approx-path", args.approx_path]
-        return _run_with_argv(train_track, train_argv)
-
-    elif args.command == "residual":
-        from lotf.scripts.train_residual import main as train_residual
-
-        train_argv = [
-            "train_residual",
-            "--config",
-            args.config,
-            "--dataset",
-            args.dataset,
-            "--output",
-            args.output,
-        ]
-        return _run_with_argv(train_residual, train_argv)
-
-    elif args.command == "eval":
-        from lotf.scripts.evaluate_policy import main as eval_policy
-
-        eval_argv = [
-            "evaluate_policy",
-            "--benchmark-config",
-            args.benchmark_config,
-            "--setting",
-            args.setting,
-        ]
-        if args.checkpoint:
-            eval_argv += ["--checkpoint", args.checkpoint]
-        else:
-            eval_argv += ["--checkpoint-stem", args.checkpoint_stem]
-        if args.residual_checkpoint:
-            eval_argv += ["--residual-checkpoint", args.residual_checkpoint]
-        if args.output:
-            eval_argv += ["--output", args.output]
-        if args.plot_output:
-            eval_argv += ["--plot-output", args.plot_output]
-        if args.seed is not None:
-            eval_argv += ["--seed", str(args.seed)]
-        return _run_with_argv(eval_policy, eval_argv)
-
-    else:
-        print(f"Error: Unknown command '{args.command}'", file=sys.stderr)
-        return 2
-
 
 def main_play(argv: Sequence[str] | None = None) -> int:
     """Entry point for the `play` command — 3D policy visualization.
